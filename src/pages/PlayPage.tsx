@@ -5,9 +5,9 @@ import { usePlayStore } from '../store/usePlayStore';
 import { loadPuzzle } from '../storage/puzzleStorage';
 import { computeAreas } from '../lib/grid';
 import { describeClue } from '../lib/describeClue';
-import { areaLabel } from '../lib/areaLabel';
+import { areaDisplayName } from '../lib/areaLabel';
 import { findVictimCell, type Positions } from '../lib/solve';
-import { parseCellId, type CellId, type Puzzle } from '../types/puzzle';
+import { elementCatalogEntry, parseCellId, type CellId, type Puzzle } from '../types/puzzle';
 
 type Mode = 'candidate' | 'confirm';
 
@@ -132,11 +132,14 @@ export default function PlayPage() {
           onCellClick={onCellClick}
           renderCell={(c) => {
             const el = puzzle.elements.find((e) => e.cellId === c);
+            const elEntry = el ? elementCatalogEntry(el.type) : undefined;
             const confirmedSuspect = puzzle.suspects.find((s) => confirmed[s.id] === c);
             const candidateIds = playState.candidates[c] ?? [];
+            const name = puzzle.areaNames.find((a) => a.cellId === c)?.name;
             return (
               <>
-                {el && <span className="mk-element-icon" title={el.label}>{el.icon}</span>}
+                {name && <span className="mk-area-name">{name}</span>}
+                {elEntry && <span className="mk-element-icon" title={elEntry.label}>{elEntry.icon}</span>}
                 {confirmedSuspect && (
                   <span className="mk-confirmed" style={{ background: confirmedSuspect.color }}>
                     {confirmedSuspect.name.replace(/\D/g, '') || confirmedSuspect.name[0]}
@@ -176,7 +179,7 @@ export default function PlayPage() {
               <ul className="mk-clue-list">
                 {clues.map((c) => (
                   <li key={c.id} className="mk-clue-item">
-                    {describeClue(c, puzzle)}
+                    {describeClue(c, puzzle, areas)}
                   </li>
                 ))}
               </ul>
@@ -190,7 +193,8 @@ export default function PlayPage() {
               {puzzle.globalRules.map((r) => (
                 <li key={r.id} className="mk-clue-item">
                   {r.type === 'allAreasHaveSuspect' && 'Ogni area contiene almeno un sospettato'}
-                  {r.type === 'evenCountInAreas' && `Numero pari di sospettati in: ${r.areaIds.map(areaLabel).join(', ')}`}
+                  {r.type === 'evenCountInAreas' &&
+                    `Numero pari di sospettati in: ${r.areaIds.map((id) => areaDisplayName(id, puzzle.areaNames, areas)).join(', ')}`}
                   {r.type === 'custom' && r.description}
                 </li>
               ))}

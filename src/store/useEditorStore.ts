@@ -5,11 +5,12 @@ import {
   DEFAULT_SUSPECT_COLORS,
   type Clue,
   type DistributiveOmit,
+  type ElementType,
   type GlobalRule,
-  type MapElement,
   type Puzzle,
   type Suspect,
 } from '../types/puzzle';
+import { computeAreas } from '../lib/grid';
 import { loadPuzzle, savePuzzle } from '../storage/puzzleStorage';
 
 interface EditorState {
@@ -21,9 +22,9 @@ interface EditorState {
   resize: (width: number, height: number) => void;
   toggleWallRight: (cellId: string) => void;
   toggleWallBottom: (cellId: string) => void;
-  addElement: (element: Omit<MapElement, 'id'>) => void;
-  updateElement: (id: string, patch: Partial<Omit<MapElement, 'id'>>) => void;
+  addElement: (element: { type: ElementType; cellId: string }) => void;
   removeElement: (id: string) => void;
+  setAreaName: (cellId: string, name: string) => void;
   setSuspectSolution: (suspectId: string, cellId: string | null) => void;
   renameSuspect: (suspectId: string, name: string) => void;
   setKiller: (suspectId: string | null) => void;
@@ -82,6 +83,7 @@ export const useEditorStore = create<EditorState>((set) => ({
           wallsRight: s.puzzle.wallsRight.filter(inBounds),
           wallsBottom: s.puzzle.wallsBottom.filter(inBounds),
           elements: s.puzzle.elements.filter((e) => inBounds(e.cellId)),
+          areaNames: s.puzzle.areaNames.filter((a) => inBounds(a.cellId)),
           suspects: suspects.map((sp) =>
             sp.solutionCellId && !inBounds(sp.solutionCellId) ? { ...sp, solutionCellId: null } : sp,
           ),
@@ -119,14 +121,6 @@ export const useEditorStore = create<EditorState>((set) => ({
       }),
     })),
 
-  updateElement: (id, patch) =>
-    set((s) => ({
-      puzzle: persist({
-        ...s.puzzle,
-        elements: s.puzzle.elements.map((e) => (e.id === id ? { ...e, ...patch } : e)),
-      }),
-    })),
-
   removeElement: (id) =>
     set((s) => ({
       puzzle: persist({
@@ -137,6 +131,16 @@ export const useEditorStore = create<EditorState>((set) => ({
         ),
       }),
     })),
+
+  setAreaName: (cellId, name) =>
+    set((s) => {
+      const areas = computeAreas(s.puzzle);
+      const areaId = areas.cellArea[cellId];
+      const trimmed = name.trim();
+      const others = s.puzzle.areaNames.filter((a) => areas.cellArea[a.cellId] !== areaId);
+      const areaNames = trimmed ? [...others, { cellId, name: trimmed }] : others;
+      return { puzzle: persist({ ...s.puzzle, areaNames }) };
+    }),
 
   setSuspectSolution: (suspectId, cellId) =>
     set((s) => ({

@@ -156,9 +156,30 @@
 
 .mk-element-icon {
   position: absolute;
-  top: 2px;
-  left: 2px;
-  font-size: 1rem;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2.2rem;
+  pointer-events: none;
+}
+
+.mk-area-name {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  right: 3px;
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: #1a1a1a;
+  background: rgba(255, 255, 255, 0.75);
+  border-radius: 4px;
+  padding: 1px 4px;
+  pointer-events: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  z-index: 1;
 }
 
 .mk-clue-list {

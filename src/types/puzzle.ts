@@ -23,13 +23,37 @@ export function parseCellId(id: CellId): { row: number; col: number } {
 
 export type Direction = 'N' | 'S' | 'E' | 'O';
 
+/** Catalogo fisso degli oggetti piazzabili sulla mappa: solo icona, nessun nome libero. */
+export const ELEMENT_CATALOG = [
+  { type: 'chair', icon: '🪑', label: 'Sedia' },
+  { type: 'rug', icon: '🟫', label: 'Tappeto' },
+  { type: 'table', icon: '🍽️', label: 'Tavolo' },
+  { type: 'bush', icon: '🌿', label: 'Cespuglio' },
+  { type: 'tree', icon: '🌳', label: 'Albero' },
+  { type: 'rock', icon: '🪨', label: 'Roccia' },
+  { type: 'plant', icon: '🪴', label: 'Pianta in vaso' },
+  { type: 'bookshelf', icon: '📚', label: 'Libreria' },
+  { type: 'tv', icon: '📺', label: 'TV' },
+  { type: 'crate', icon: '🛢️', label: 'Cassa/Barile' },
+] as const;
+
+export type ElementType = (typeof ELEMENT_CATALOG)[number]['type'];
+
+export function elementCatalogEntry(type: string) {
+  return ELEMENT_CATALOG.find((e) => e.type === type);
+}
+
 export interface MapElement {
   id: string;
-  /** Etichetta libera scelta dal designer, es. "Coltello", "Tavolo" */
-  label: string;
-  /** Emoji o carattere usato come icona nella griglia */
-  icon: string;
+  /** Tipo di oggetto: chiave nel catalogo ELEMENT_CATALOG, determina icona e nome */
+  type: ElementType;
   cellId: CellId;
+}
+
+/** Nome personalizzato assegnato ad un'area, ancorato ad una sua cella. */
+export interface AreaName {
+  cellId: CellId;
+  name: string;
 }
 
 export interface Suspect {
@@ -118,6 +142,7 @@ export interface Puzzle {
   /** Muro tra (row,col) e (row+1,col): CellId della cella sopra il muro */
   wallsBottom: CellId[];
   elements: MapElement[];
+  areaNames: AreaName[];
   suspects: Suspect[];
   killerId: string | null;
   clues: Clue[];
@@ -147,6 +172,7 @@ export function createEmptyPuzzle(width: number, height: number): Puzzle {
     wallsRight: [],
     wallsBottom: [],
     elements: [],
+    areaNames: [],
     suspects,
     killerId: null,
     clues: [],

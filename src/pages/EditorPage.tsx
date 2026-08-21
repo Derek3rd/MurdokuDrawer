@@ -4,21 +4,19 @@ import { GridCanvas } from '../components/GridCanvas';
 import ClueForm from '../components/ClueForm';
 import { useEditorStore } from '../store/useEditorStore';
 import { computeAreas } from '../lib/grid';
-import { areaLabel } from '../lib/areaLabel';
+import { areaDisplayName, areaCustomName } from '../lib/areaLabel';
 import { describeClue } from '../lib/describeClue';
 import { downloadPuzzleAsFile } from '../storage/puzzleStorage';
 import { findVictimCell, solutionPositions } from '../lib/solve';
-import { parseCellId, type CellId } from '../types/puzzle';
+import { ELEMENT_CATALOG, elementCatalogEntry, parseCellId, type CellId, type ElementType } from '../types/puzzle';
 
 type Tool = 'walls' | 'elements' | 'suspects';
-
-const COMMON_ICONS = ['🔪', '🗝️', '📕', '🍷', '🕯️', '🖼️', '🪑', '🧳', '☎️', '💰', '🌹', '🗡️'];
 
 export default function EditorPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { puzzle, loadPuzzleById, rename, resize, toggleWallRight, toggleWallBottom, addElement, removeElement,
-    setSuspectSolution, renameSuspect, setKiller, addClue, removeClue, addGlobalRule, removeGlobalRule } =
+    setAreaName, setSuspectSolution, renameSuspect, setKiller, addClue, removeClue, addGlobalRule, removeGlobalRule } =
     useEditorStore();
 
   useEffect(() => {
@@ -27,9 +25,7 @@ export default function EditorPage() {
 
   const [tool, setTool] = useState<Tool>('walls');
   const [selectedSuspectId, setSelectedSuspectId] = useState<string | null>(puzzle.suspects[0]?.id ?? null);
-  const [newElementIcon, setNewElementIcon] = useState(COMMON_ICONS[0]);
-  const [newElementLabel, setNewElementLabel] = useState('');
-  const [pendingElementCell, setPendingElementCell] = useState<CellId | null>(null);
+  const [selectedElementType, setSelectedElementType] = useState<ElementType>(ELEMENT_CATALOG[0].type);
   const [clueEditorFor, setClueEditorFor] = useState<string | null>(null);
   const [customRuleText, setCustomRuleText] = useState('');
 
@@ -53,12 +49,20 @@ export default function EditorPage() {
   };
 
   const onCellClick = (c: CellId) => {
-    if (tool === 'elements') {
+    if (tool === 'walls') {
+      const areaId = areas.cellArea[c];
+      const current = areaCustomName(areaId, puzzle.areaNames, areas) ?? '';
+      const name = prompt("Nome per quest'area (lascia vuoto per rimuovere il nome):", current);
+      if (name !== null) setAreaName(c, name);
+    } else if (tool === 'elements') {
       const existing = elementAt(c);
-      if (existing) {
-        if (confirm(`Rimuovere l'oggetto "${existing.label}"?`)) removeElement(existing.id);
+      if (existing?.type === selectedElementType) {
+        removeElement(existing.id);
+      } else if (existing) {
+        removeElement(existing.id);
+        addElement({ type: selectedElementType, cellId: c });
       } else {
-        setPendingElementCell(c);
+        addElement({ type: selectedElementType, cellId: c });
       }
     } else if (tool === 'suspects') {
       if (!selectedSuspectId) return;
@@ -80,13 +84,6 @@ export default function EditorPage() {
     if (tool !== 'walls') return;
     if (side === 'right') toggleWallRight(cell);
     else toggleWallBottom(cell);
-  };
-
-  const confirmAddElement = () => {
-    if (!pendingElementCell || !newElementLabel.trim()) return;
-    addElement({ cellId: pendingElementCell, icon: newElementIcon, label: newElementLabel.trim() });
-    setNewElementLabel('');
-    setPendingElementCell(null);
   };
 
   return (
@@ -156,26 +153,19 @@ export default function EditorPage() {
           </div>
         )}
 
-        {tool === 'elements' && pendingElementCell && (
+        {tool === 'elements' && (
           <div className="mk-row" style={{ marginBottom: '0.5rem' }}>
-            <select value={newElementIcon} onChange={(e) => setNewElementIcon(e.target.value)}>
-              {COMMON_ICONS.map((icon) => (
-                <option key={icon} value={icon}>
-                  {icon}
-                </option>
-              ))}
-            </select>
-            <input
-              placeholder="Nome oggetto (es. Coltello)"
-              value={newElementLabel}
-              onChange={(e) => setNewElementLabel(e.target.value)}
-            />
-            <button className="mk-btn" onClick={confirmAddElement}>
-              Aggiungi
-            </button>
-            <button className="mk-btn secondary" onClick={() => setPendingElementCell(null)}>
-              Annulla
-            </button>
+            {ELEMENT_CATALOG.map((entry) => (
+              <span
+                key={entry.type}
+                className={`mk-suspect-pill ${selectedElementType === entry.type ? 'active' : ''}`}
+                style={{ background: '#495057' }}
+                onClick={() => setSelectedElementType(entry.type)}
+                title={entry.label}
+              >
+                {entry.icon} {entry.label}
+              </span>
+            ))}
           </div>
         )}
 
@@ -192,9 +182,11 @@ export default function EditorPage() {
           renderCell={(c) => {
             const el = elementAt(c);
             const sus = suspectAt(c);
+            const name = puzzle.areaNames.find((a) => a.cellId === c)?.name;
             return (
               <>
-                {el && <span className="mk-element-icon">{el.icon}</span>}
+                {name && <span className="mk-area-name">{name}</span>}
+                {el && <span className="mk-element-icon">{elementCatalogEntry(el.type)?.icon}</span>}
                 {sus && (
                   <span className="mk-confirmed" style={{ background: sus.color }}>
                     {sus.name.replace(/\D/g, '') || sus.name[0]}
@@ -206,8 +198,10 @@ export default function EditorPage() {
           }}
         />
         <p style={{ textAlign: 'center', fontSize: '0.85rem', color: '#666' }}>
-          {tool === 'walls' && 'Clicca tra due celle per aggiungere/rimuovere un muro che delimita le aree.'}
-          {tool === 'elements' && 'Clicca una cella per aggiungere un oggetto, clicca un oggetto per rimuoverlo.'}
+          {tool === 'walls' &&
+            'Trascina tra le celle per disegnare i muri che delimitano le aree. Clicca una cella per darle un nome.'}
+          {tool === 'elements' &&
+            'Scegli un oggetto sopra, poi clicca una cella per piazzarlo (clicca di nuovo lo stesso oggetto per rimuoverlo).'}
           {tool === 'suspects' &&
             'Seleziona un sospettato sopra, poi clicca la cella soluzione. Le celle in grigio sono bloccate da riga/colonna già occupate.'}
         </p>
@@ -256,7 +250,7 @@ export default function EditorPage() {
                 .filter((c) => c.suspectId === s.id)
                 .map((c) => (
                   <li key={c.id} className="mk-clue-item">
-                    <span>{describeClue(c, puzzle)}</span>
+                    <span>{describeClue(c, puzzle, areas)}</span>
                     <button className="mk-btn danger" onClick={() => removeClue(c.id)}>
                       Rimuovi
                     </button>
@@ -291,7 +285,7 @@ export default function EditorPage() {
               <span>
                 {r.type === 'allAreasHaveSuspect' && 'Ogni area contiene almeno un sospettato'}
                 {r.type === 'evenCountInAreas' &&
-                  `Numero pari di sospettati in: ${r.areaIds.map(areaLabel).join(', ')}`}
+                  `Numero pari di sospettati in: ${r.areaIds.map((id) => areaDisplayName(id, puzzle.areaNames, areas)).join(', ')}`}
                 {r.type === 'custom' && r.description}
               </span>
               <button className="mk-btn danger" onClick={() => removeGlobalRule(r.id)}>
