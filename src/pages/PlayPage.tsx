@@ -6,7 +6,7 @@ import { loadPuzzle } from '../storage/puzzleStorage';
 import { computeAreas } from '../lib/grid';
 import { describeClue } from '../lib/describeClue';
 import { areaDisplayName } from '../lib/areaLabel';
-import { findVictimCell, type Positions } from '../lib/solve';
+import { findVictimCell, victimLetter, type Positions } from '../lib/solve';
 import { elementCatalogEntry, parseCellId, type CellId, type Puzzle } from '../types/puzzle';
 
 type Mode = 'candidate' | 'confirm';
@@ -14,7 +14,8 @@ type Mode = 'candidate' | 'confirm';
 export default function PlayPage() {
   const { id } = useParams();
   const [puzzle, setPuzzle] = useState<Puzzle | null>(null);
-  const { puzzleId, playState, load, toggleCandidate, confirmSuspect, unconfirmSuspect, reset } = usePlayStore();
+  const { puzzleId, playState, history, load, toggleCandidate, confirmSuspect, unconfirmSuspect, undo, reset } =
+    usePlayStore();
   const [mode, setMode] = useState<Mode>('candidate');
   const [selectedSuspectId, setSelectedSuspectId] = useState<string | null>(null);
   const [result, setResult] = useState<'pending' | 'correct' | 'incorrect'>('pending');
@@ -108,6 +109,9 @@ export default function PlayPage() {
           <button className="mk-btn" onClick={checkSolution}>
             Verifica soluzione
           </button>
+          <button className="mk-btn secondary" disabled={history.length === 0} onClick={() => undo()}>
+            ↩️ Annulla
+          </button>
           <button
             className="mk-btn danger"
             onClick={() => {
@@ -142,7 +146,7 @@ export default function PlayPage() {
                 {elEntry && <span className="mk-element-icon" title={elEntry.label}>{elEntry.icon}</span>}
                 {confirmedSuspect && (
                   <span className="mk-confirmed" style={{ background: confirmedSuspect.color }}>
-                    {confirmedSuspect.name.replace(/\D/g, '') || confirmedSuspect.name[0]}
+                    {confirmedSuspect.name[0]?.toUpperCase()}
                   </span>
                 )}
                 {!confirmedSuspect && candidateIds.length > 0 && (
@@ -153,7 +157,11 @@ export default function PlayPage() {
                     })}
                   </div>
                 )}
-                {victim.cellId === c && result === 'correct' && <span title="Vittima">💀</span>}
+                {victim.cellId === c && result === 'correct' && (
+                  <span className="mk-victim-badge" title="Vittima">
+                    {victimLetter(puzzle)}
+                  </span>
+                )}
               </>
             );
           }}
@@ -162,7 +170,9 @@ export default function PlayPage() {
         {result === 'correct' && (
           <p className="mk-status-ok">
             🎉 Soluzione corretta! Il killer è <strong>{killer?.name}</strong>
-            {victim.cellId ? `, la vittima si trova nella cella ${victim.cellId}.` : '.'}
+            {victim.cellId
+              ? `, la vittima (${victimLetter(puzzle)}) si trova nella cella ${victim.cellId}.`
+              : '.'}
           </p>
         )}
         {result === 'incorrect' && <p className="mk-status-bad">Non corretto, riprova.</p>}

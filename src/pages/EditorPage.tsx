@@ -7,7 +7,7 @@ import { computeAreas } from '../lib/grid';
 import { areaDisplayName, areaCustomName } from '../lib/areaLabel';
 import { describeClue } from '../lib/describeClue';
 import { downloadPuzzleAsFile } from '../storage/puzzleStorage';
-import { findVictimCell, solutionPositions } from '../lib/solve';
+import { findVictimCell, solutionPositions, victimLetter } from '../lib/solve';
 import { ELEMENT_CATALOG, elementCatalogEntry, parseCellId, type CellId, type ElementType } from '../types/puzzle';
 
 type Tool = 'walls' | 'elements' | 'suspects';
@@ -189,10 +189,14 @@ export default function EditorPage() {
                 {el && <span className="mk-element-icon">{elementCatalogEntry(el.type)?.icon}</span>}
                 {sus && (
                   <span className="mk-confirmed" style={{ background: sus.color }}>
-                    {sus.name.replace(/\D/g, '') || sus.name[0]}
+                    {sus.name[0]?.toUpperCase()}
                   </span>
                 )}
-                {victim.cellId === c && !sus && <span title="Vittima">💀</span>}
+                {victim.cellId === c && !sus && (
+                  <span className="mk-victim-badge" title="Vittima">
+                    {victimLetter(puzzle)}
+                  </span>
+                )}
               </>
             );
           }}
@@ -206,7 +210,9 @@ export default function EditorPage() {
             'Seleziona un sospettato sopra, poi clicca la cella soluzione. Le celle in grigio sono bloccate da riga/colonna già occupate.'}
         </p>
         {victim.cellId ? (
-          <p className="mk-status-ok">💀 Vittima calcolata in cella {victim.cellId}</p>
+          <p className="mk-status-ok">
+            💀 Vittima ({victimLetter(puzzle)}) calcolata in cella {victim.cellId}
+          </p>
         ) : (
           <p className="mk-status-unknown">Vittima non ancora determinabile: {victim.reason}</p>
         )}
