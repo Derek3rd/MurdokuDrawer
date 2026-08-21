@@ -7,6 +7,17 @@
 // Le aree della mappa sono regioni di celle contigue delimitate da muri.
 // La vittima occupa sempre l'ultima cella libera nell'area del killer.
 
+import iconAlbero from '../assets/icons/albero.svg';
+import iconCono from '../assets/icons/cono.svg';
+import iconLetto from '../assets/icons/letto.svg';
+import iconLibreria from '../assets/icons/libreria.svg';
+import iconPianta from '../assets/icons/pianta.svg';
+import iconSedia from '../assets/icons/sedia.svg';
+import iconStatua from '../assets/icons/statua.svg';
+import iconTavolo from '../assets/icons/tavolo.svg';
+import iconTronco from '../assets/icons/tronco.svg';
+import iconTv from '../assets/icons/tv.svg';
+
 /** Omit che si distribuisce sui membri di un tipo unione discriminata. */
 export type DistributiveOmit<T, K extends keyof T> = T extends unknown ? Omit<T, K> : never;
 
@@ -23,21 +34,22 @@ export function parseCellId(id: CellId): { row: number; col: number } {
 
 export type Direction = 'N' | 'S' | 'E' | 'O';
 
-/** Catalogo fisso degli oggetti piazzabili sulla mappa: icona, nome ed occupabilità. */
+/** Catalogo fisso degli oggetti piazzabili sulla mappa: icona/immagine, nome ed occupabilità. */
 export const ELEMENT_CATALOG = [
-  { type: 'chair', icon: '🪑', label: 'Sedia', occupiable: true },
+  { type: 'chair', icon: '🪑', image: iconSedia, label: 'Sedia', occupiable: true },
   { type: 'rug', icon: '🟫', label: 'Tappeto', occupiable: true },
-  { type: 'table', icon: '🍽️', label: 'Tavolo', occupiable: false },
+  { type: 'table', icon: '🍽️', image: iconTavolo, label: 'Tavolo', occupiable: false },
   { type: 'bush', icon: '🌿', label: 'Cespuglio', occupiable: true },
-  { type: 'tree', icon: '🌳', label: 'Albero', occupiable: false },
+  { type: 'tree', icon: '🌳', image: iconAlbero, label: 'Albero', occupiable: false },
   { type: 'rock', icon: '🪨', label: 'Roccia', occupiable: true },
-  { type: 'plant', icon: '🪴', label: 'Pianta in vaso', occupiable: false },
-  { type: 'bookshelf', icon: '📚', label: 'Libreria', occupiable: false },
-  { type: 'tv', icon: '📺', label: 'TV', occupiable: false },
+  { type: 'plant', icon: '🪴', image: iconPianta, label: 'Pianta in vaso', occupiable: false },
+  { type: 'bookshelf', icon: '📚', image: iconLibreria, label: 'Libreria', occupiable: false },
+  { type: 'tv', icon: '📺', image: iconTv, label: 'TV', occupiable: false },
   { type: 'crate', icon: '🛢️', label: 'Cassa/Barile', occupiable: true },
-  { type: 'cone', icon: '🔺', label: 'Cono', occupiable: false },
-  { type: 'statue', icon: '🗿', label: 'Statua', occupiable: false },
-  { type: 'log', icon: '🪵', label: 'Tronco', occupiable: false },
+  { type: 'cone', icon: '🔺', image: iconCono, label: 'Cono', occupiable: false },
+  { type: 'statue', icon: '🗿', image: iconStatua, label: 'Statua', occupiable: false },
+  { type: 'log', icon: '🪵', image: iconTronco, label: 'Tronco', occupiable: false },
+  { type: 'bed', icon: '🛏️', image: iconLetto, label: 'Letto', occupiable: true },
 ] as const;
 
 export type ElementType = (typeof ELEMENT_CATALOG)[number]['type'];
