@@ -1,14 +1,14 @@
 export interface PlayState {
   /** cellId -> lista di suspectId segnati come candidati in quella cella */
   candidates: Record<string, string[]>;
-  /** cellId -> lista di suspectId esclusi manualmente da quella cella (nota del giocatore) */
-  manualExclusions: Record<string, string[]>;
+  /** Celle segnate manualmente dal giocatore come "non possono essere occupate" */
+  manualMarks: string[];
   /** suspectId -> cellId confermato */
   confirmed: Record<string, string>;
 }
 
 export function emptyPlayState(): PlayState {
-  return { candidates: {}, manualExclusions: {}, confirmed: {} };
+  return { candidates: {}, manualMarks: [], confirmed: {} };
 }
 
 function key(puzzleId: string): string {

@@ -5,8 +5,8 @@ import {
   suspectLetter,
   DEFAULT_SUSPECT_COLORS,
   type Clue,
+  type CustomElementType,
   type DistributiveOmit,
-  type ElementType,
   type GlobalRule,
   type Puzzle,
   type Suspect,
@@ -23,8 +23,10 @@ interface EditorState {
   resize: (width: number, height: number) => void;
   toggleWallRight: (cellId: string) => void;
   toggleWallBottom: (cellId: string) => void;
-  addElement: (element: { type: ElementType; cellId: string }) => void;
+  addElement: (element: { type: string; cellId: string }) => void;
   removeElement: (id: string) => void;
+  addCustomElementType: (entry: Omit<CustomElementType, 'id'>) => string;
+  removeCustomElementType: (id: string) => void;
   setAreaName: (cellId: string, name: string) => void;
   setSuspectSolution: (suspectId: string, cellId: string | null) => void;
   renameSuspect: (suspectId: string, name: string) => void;
@@ -132,6 +134,33 @@ export const useEditorStore = create<EditorState>((set) => ({
         ),
       }),
     })),
+
+  addCustomElementType: (entry) => {
+    const id = crypto.randomUUID();
+    set((s) => ({
+      puzzle: persist({
+        ...s.puzzle,
+        customElementTypes: [...s.puzzle.customElementTypes, { ...entry, id }],
+      }),
+    }));
+    return id;
+  },
+
+  removeCustomElementType: (id) =>
+    set((s) => {
+      const removedElementIds = s.puzzle.elements.filter((e) => e.type === id).map((e) => e.id);
+      return {
+        puzzle: persist({
+          ...s.puzzle,
+          customElementTypes: s.puzzle.customElementTypes.filter((c) => c.id !== id),
+          elements: s.puzzle.elements.filter((e) => e.type !== id),
+          clues: s.puzzle.clues.filter(
+            (c) =>
+              !((c.type === 'onElement' || c.type === 'nearElement') && removedElementIds.includes(c.elementId)),
+          ),
+        }),
+      };
+    }),
 
   setAreaName: (cellId, name) =>
     set((s) => {

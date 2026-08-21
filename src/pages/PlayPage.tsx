@@ -3,19 +3,22 @@ import { useParams, Link } from 'react-router-dom';
 import { GridCanvas } from '../components/GridCanvas';
 import { usePlayStore } from '../store/usePlayStore';
 import { loadPuzzle } from '../storage/puzzleStorage';
-import { computeAreas } from '../lib/grid';
+import { areaCentroidCell, computeAreas } from '../lib/grid';
 import { describeClue } from '../lib/describeClue';
-import { areaDisplayName } from '../lib/areaLabel';
+import { areaCustomName, areaDisplayName } from '../lib/areaLabel';
 import { findVictimCell, victimLetter, type Positions } from '../lib/solve';
-import { elementCatalogEntry, parseCellId, type CellId, type Puzzle } from '../types/puzzle';
+import { parseCellId, resolveElementType, type CellId, type Puzzle } from '../types/puzzle';
 
 export default function PlayPage() {
   const { id } = useParams();
   const [puzzle, setPuzzle] = useState<Puzzle | null>(null);
-  const { puzzleId, playState, history, load, cycleMark, confirmSuspect, unconfirmSuspect, undo, reset } =
+  const { puzzleId, playState, history, load, toggleCandidate, toggleManualMark, confirmSuspect, unconfirmSuspect, undo, reset } =
     usePlayStore();
   const [selectedSuspectId, setSelectedSuspectId] = useState<string | null>(null);
   const [result, setResult] = useState<'pending' | 'correct' | 'incorrect'>('pending');
+  // In questa modalità il tap segna/toglie una X manuale sulla cella (non legata a un
+  // sospettato), invece di segnare un candidato per il sospettato selezionato.
+  const [markMode, setMarkMode] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -45,7 +48,7 @@ export default function PlayPage() {
 
   // Cella esclusa da un qualsiasi sospettato già confermato (stessa riga o colonna):
   // indicazione sempre visibile, indipendente da quale sospettato è selezionato.
-  const isExcludedCell = (c: CellId): boolean => {
+  const isAutoExcludedCell = (c: CellId): boolean => {
     const { row, col } = parseCellId(c);
     return Object.values(confirmed).some((cid) => {
       if (cid === c) return false;
@@ -54,13 +57,18 @@ export default function PlayPage() {
     });
   };
 
-  // Click breve: fa avanzare l'annotazione per il sospettato selezionato
-  // (vuoto -> candidato -> esclusione manuale -> vuoto). Le X automatiche di riga/
-  // colonna sono un'altra cosa: calcolate a parte, il giocatore non può toglierle.
+  // Click breve: in modalità "segna cella" segna/toglie una X manuale sulla cella
+  // (uguale nell'aspetto a quella automatica, ma non legata ad un sospettato);
+  // altrimenti segna/toglie un candidato per il sospettato selezionato. Le X
+  // automatiche di riga/colonna sono calcolate a parte: il giocatore non può toglierle.
   const onCellTap = (c: CellId) => {
+    if (markMode) {
+      toggleManualMark(c);
+      return;
+    }
     if (!selectedSuspectId) return;
-    if (confirmed[selectedSuspectId]) return; // già confermato, niente annotazioni
-    cycleMark(c, selectedSuspectId);
+    if (confirmed[selectedSuspectId]) return; // già confermato, niente candidati
+    toggleCandidate(c, selectedSuspectId);
     setResult('pending');
   };
 
@@ -74,6 +82,12 @@ export default function PlayPage() {
     }
     if (isLockedForOther(c, selectedSuspectId)) {
       alert('Riga o colonna già occupata da un altro sospettato confermato.');
+      return;
+    }
+    const el = puzzle.elements.find((e) => e.cellId === c);
+    const elEntry = el ? resolveElementType(el.type, puzzle.customElementTypes) : undefined;
+    if (elEntry && !elEntry.occupiable) {
+      alert(`Un sospettato non può stare sopra "${elEntry.label}".`);
       return;
     }
     confirmSuspect(selectedSuspectId, c);
@@ -118,12 +132,16 @@ export default function PlayPage() {
         </div>
 
         <p style={{ fontSize: '0.85rem', color: '#666' }}>
-          Seleziona un sospettato, poi tocca una cella per segnare un candidato (●), tocca di nuovo per
-          un'esclusione manuale (✕), un terzo tocco la cancella. Tieni premuto per confermarne la posizione
-          definitiva. Le X grigie sono automatiche (riga/colonna già occupata) e non si possono togliere.
+          Seleziona un sospettato, poi tocca una cella per segnare un candidato (●), tieni premuto per confermarne
+          la posizione definitiva. Con "✕ Segna cella" attivo, il tap segna invece una cella come non occupabile
+          da nessuno: le X grigie (automatiche o manuali) hanno lo stesso aspetto, ma solo quelle manuali si
+          possono togliere.
         </p>
 
         <div className="mk-toolbar">
+          <button className={`mk-btn ${markMode ? '' : 'secondary'}`} onClick={() => setMarkMode((m) => !m)}>
+            ✕ Segna cella
+          </button>
           <button className="mk-btn" onClick={checkSolution}>
             Verifica soluzione
           </button>
@@ -146,7 +164,7 @@ export default function PlayPage() {
         <GridCanvas
           puzzle={puzzle}
           cellClassName={(c) => {
-            if (isExcludedCell(c)) return 'locked';
+            if (isAutoExcludedCell(c) || playState.manualMarks.includes(c)) return 'locked';
             if (victim.cellId === c) return 'victim';
             return undefined;
           }}
@@ -154,34 +172,30 @@ export default function PlayPage() {
           onCellLongPress={onCellLongPress}
           renderCell={(c) => {
             const el = puzzle.elements.find((e) => e.cellId === c);
-            const elEntry = el ? elementCatalogEntry(el.type) : undefined;
+            const elEntry = el ? resolveElementType(el.type, puzzle.customElementTypes) : undefined;
             const confirmedSuspect = puzzle.suspects.find((s) => confirmed[s.id] === c);
             const candidateIds = playState.candidates[c] ?? [];
-            const excludedIds = playState.manualExclusions[c] ?? [];
-            const name = puzzle.areaNames.find((a) => a.cellId === c)?.name;
+            const areaId = areas.cellArea[c];
+            const areaName = areaCustomName(areaId, puzzle.areaNames, areas);
+            const name = areaName && areaCentroidCell(areas.areaCells[areaId]) === c ? areaName : undefined;
             return (
               <>
                 {name && <span className="mk-area-name">{name}</span>}
-                {elEntry && <span className="mk-element-icon" title={elEntry.label}>{elEntry.icon}</span>}
+                {elEntry && (
+                  <span className="mk-element-icon" title={elEntry.label}>
+                    {elEntry.image ? <img src={elEntry.image} alt="" /> : elEntry.icon}
+                  </span>
+                )}
                 {confirmedSuspect && (
                   <span className="mk-confirmed" style={{ background: confirmedSuspect.color }}>
                     {confirmedSuspect.name[0]?.toUpperCase()}
                   </span>
                 )}
-                {!confirmedSuspect && (candidateIds.length > 0 || excludedIds.length > 0) && (
+                {!confirmedSuspect && candidateIds.length > 0 && (
                   <div className="mk-candidate-grid">
-                    {puzzle.suspects.map((s) => {
-                      if (candidateIds.includes(s.id)) {
-                        return <span key={s.id} className="mk-candidate-dot" style={{ background: s.color }} />;
-                      }
-                      if (excludedIds.includes(s.id)) {
-                        return (
-                          <span key={s.id} className="mk-candidate-x" style={{ color: s.color }}>
-                            ✕
-                          </span>
-                        );
-                      }
-                      return null;
+                    {candidateIds.map((sid) => {
+                      const s = puzzle.suspects.find((x) => x.id === sid);
+                      return s ? <span key={sid} className="mk-candidate-dot" style={{ background: s.color }} /> : null;
                     })}
                   </div>
                 )}

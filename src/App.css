@@ -142,16 +142,6 @@
   margin: auto;
 }
 
-.mk-candidate-x {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin: auto;
-  font-size: 0.7rem;
-  font-weight: 800;
-  line-height: 1;
-}
-
 .mk-confirmed {
   width: 80%;
   height: 80%;
@@ -186,6 +176,12 @@
   justify-content: center;
   font-size: 2.2rem;
   pointer-events: none;
+}
+
+.mk-element-icon img {
+  width: 78%;
+  height: 78%;
+  object-fit: contain;
 }
 
 .mk-area-name {

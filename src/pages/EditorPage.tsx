@@ -2,13 +2,14 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { GridCanvas } from '../components/GridCanvas';
 import ClueForm from '../components/ClueForm';
+import CustomElementForm from '../components/CustomElementForm';
 import { useEditorStore } from '../store/useEditorStore';
-import { computeAreas } from '../lib/grid';
+import { areaCentroidCell, computeAreas } from '../lib/grid';
 import { areaDisplayName, areaCustomName } from '../lib/areaLabel';
 import { describeClue } from '../lib/describeClue';
 import { downloadPuzzleAsFile } from '../storage/puzzleStorage';
 import { findVictimCell, solutionPositions, victimLetter } from '../lib/solve';
-import { ELEMENT_CATALOG, elementCatalogEntry, parseCellId, type CellId, type ElementType } from '../types/puzzle';
+import { ELEMENT_CATALOG, parseCellId, resolveElementType, type CellId } from '../types/puzzle';
 
 type Tool = 'walls' | 'elements' | 'suspects';
 
@@ -16,7 +17,8 @@ export default function EditorPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { puzzle, loadPuzzleById, rename, resize, toggleWallRight, toggleWallBottom, addElement, removeElement,
-    setAreaName, setSuspectSolution, renameSuspect, setKiller, addClue, removeClue, addGlobalRule, removeGlobalRule } =
+    addCustomElementType, removeCustomElementType, setAreaName, setSuspectSolution, renameSuspect, setKiller,
+    addClue, removeClue, addGlobalRule, removeGlobalRule } =
     useEditorStore();
 
   useEffect(() => {
@@ -25,7 +27,8 @@ export default function EditorPage() {
 
   const [tool, setTool] = useState<Tool>('walls');
   const [selectedSuspectId, setSelectedSuspectId] = useState<string | null>(puzzle.suspects[0]?.id ?? null);
-  const [selectedElementType, setSelectedElementType] = useState<ElementType>(ELEMENT_CATALOG[0].type);
+  const [selectedElementType, setSelectedElementType] = useState<string>(ELEMENT_CATALOG[0].type);
+  const [showCustomElementForm, setShowCustomElementForm] = useState(false);
   const [clueEditorFor, setClueEditorFor] = useState<string | null>(null);
   const [customRuleText, setCustomRuleText] = useState('');
 
@@ -70,6 +73,12 @@ export default function EditorPage() {
       const existing = suspectAt(c);
       if (existing && existing.id !== selectedSuspectId) {
         alert(`Cella già occupata da ${existing.name}`);
+        return;
+      }
+      const el = elementAt(c);
+      const entry = el ? resolveElementType(el.type, puzzle.customElementTypes) : undefined;
+      if (entry && !entry.occupiable) {
+        alert(`Un sospettato non può stare sopra "${entry.label}".`);
         return;
       }
       const current = puzzle.suspects.find((s) => s.id === selectedSuspectId);
@@ -155,19 +164,60 @@ export default function EditorPage() {
         )}
 
         {tool === 'elements' && (
-          <div className="mk-row" style={{ marginBottom: '0.5rem' }}>
-            {ELEMENT_CATALOG.map((entry) => (
-              <span
-                key={entry.type}
-                className={`mk-suspect-pill ${selectedElementType === entry.type ? 'active' : ''}`}
-                style={{ background: '#495057' }}
-                onClick={() => setSelectedElementType(entry.type)}
-                title={entry.label}
-              >
-                {entry.icon} {entry.label}
-              </span>
-            ))}
-          </div>
+          <>
+            <div className="mk-row" style={{ marginBottom: '0.5rem', alignItems: 'center' }}>
+              {ELEMENT_CATALOG.map((entry) => (
+                <span
+                  key={entry.type}
+                  className={`mk-suspect-pill ${selectedElementType === entry.type ? 'active' : ''}`}
+                  style={{ background: '#495057' }}
+                  onClick={() => setSelectedElementType(entry.type)}
+                  title={entry.label}
+                >
+                  {entry.icon} {entry.label}
+                </span>
+              ))}
+              {puzzle.customElementTypes.map((entry) => (
+                <span
+                  key={entry.id}
+                  className={`mk-suspect-pill ${selectedElementType === entry.id ? 'active' : ''}`}
+                  style={{ background: '#495057' }}
+                  onClick={() => setSelectedElementType(entry.id)}
+                  title={entry.occupiable ? entry.name : `${entry.name} (non occupabile)`}
+                >
+                  <img src={entry.image} alt="" style={{ width: 16, height: 16, objectFit: 'contain' }} />{' '}
+                  {entry.name}
+                  {!entry.occupiable && ' 🚫'}
+                  <span
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (confirm(`Eliminare l'oggetto personalizzato "${entry.name}"?`)) {
+                        removeCustomElementType(entry.id);
+                        if (selectedElementType === entry.id) setSelectedElementType(ELEMENT_CATALOG[0].type);
+                      }
+                    }}
+                    style={{ marginLeft: '0.3rem' }}
+                    title="Elimina"
+                  >
+                    ✕
+                  </span>
+                </span>
+              ))}
+              <button className="mk-btn secondary" onClick={() => setShowCustomElementForm((v) => !v)}>
+                + Nuovo oggetto
+              </button>
+            </div>
+            {showCustomElementForm && (
+              <CustomElementForm
+                onSubmit={(entry) => {
+                  const id = addCustomElementType(entry);
+                  setSelectedElementType(id);
+                  setShowCustomElementForm(false);
+                }}
+                onCancel={() => setShowCustomElementForm(false)}
+              />
+            )}
+          </>
         )}
 
         <GridCanvas
@@ -182,12 +232,19 @@ export default function EditorPage() {
           }}
           renderCell={(c) => {
             const el = elementAt(c);
+            const elEntry = el ? resolveElementType(el.type, puzzle.customElementTypes) : undefined;
             const sus = suspectAt(c);
-            const name = puzzle.areaNames.find((a) => a.cellId === c)?.name;
+            const areaId = areas.cellArea[c];
+            const areaName = areaCustomName(areaId, puzzle.areaNames, areas);
+            const name = areaName && areaCentroidCell(areas.areaCells[areaId]) === c ? areaName : undefined;
             return (
               <>
                 {name && <span className="mk-area-name">{name}</span>}
-                {el && <span className="mk-element-icon">{elementCatalogEntry(el.type)?.icon}</span>}
+                {elEntry && (
+                  <span className="mk-element-icon" title={elEntry.label}>
+                    {elEntry.image ? <img src={elEntry.image} alt="" /> : elEntry.icon}
+                  </span>
+                )}
                 {sus && (
                   <span className="mk-confirmed" style={{ background: sus.color }}>
                     {sus.name[0]?.toUpperCase()}
