@@ -1,5 +1,5 @@
 import type { CellId, Clue, GlobalRule, Puzzle } from '../types/puzzle';
-import { parseCellId } from '../types/puzzle';
+import { parseCellId, suspectLetter } from '../types/puzzle';
 import { computeAreas, isAdjacent, isAdjacentInDirection, isInDirection, type AreaMap } from './grid';
 
 export type Positions = Record<string, CellId | null>;
@@ -9,6 +9,11 @@ export function solutionPositions(puzzle: Puzzle): Positions {
   const pos: Positions = {};
   for (const s of puzzle.suspects) pos[s.id] = s.solutionCellId;
   return pos;
+}
+
+/** Lettera della vittima: quella subito dopo l'ultimo sospettato (es. 4 sospettati A-D -> vittima E). */
+export function victimLetter(puzzle: Puzzle): string {
+  return suspectLetter(puzzle.suspects.length);
 }
 
 /**

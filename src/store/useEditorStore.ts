@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import {
   createEmptyPuzzle,
   suspectCount,
+  suspectLetter,
   DEFAULT_SUSPECT_COLORS,
   type Clue,
   type DistributiveOmit,
@@ -64,7 +65,7 @@ export const useEditorStore = create<EditorState>((set) => ({
         return (
           existing ?? {
             id: `suspect-${i + 1}`,
-            name: `Sospettato ${i + 1}`,
+            name: suspectLetter(i),
             color: DEFAULT_SUSPECT_COLORS[i % DEFAULT_SUSPECT_COLORS.length],
             solutionCellId: null,
           }

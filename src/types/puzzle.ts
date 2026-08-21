@@ -155,12 +155,20 @@ export function suspectCount(width: number, height: number): number {
   return Math.max(0, Math.min(width, height) - 1);
 }
 
+/**
+ * Lettera dell'alfabeto assegnata di default ad un sospettato (o alla vittima):
+ * ogni sospettato ha teoricamente un nome che inizia con questa iniziale.
+ */
+export function suspectLetter(index: number): string {
+  return String.fromCharCode(65 + (index % 26));
+}
+
 export function createEmptyPuzzle(width: number, height: number): Puzzle {
   const now = new Date().toISOString();
   const n = suspectCount(width, height);
   const suspects: Suspect[] = Array.from({ length: n }, (_, i) => ({
     id: `suspect-${i + 1}`,
-    name: `Sospettato ${i + 1}`,
+    name: suspectLetter(i),
     color: DEFAULT_SUSPECT_COLORS[i % DEFAULT_SUSPECT_COLORS.length],
     solutionCellId: null,
   }));
