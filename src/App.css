@@ -178,6 +178,12 @@
   pointer-events: none;
 }
 
+.mk-element-icon img {
+  width: 78%;
+  height: 78%;
+  object-fit: contain;
+}
+
 .mk-area-name {
   position: absolute;
   top: 3px;

@@ -1,12 +1,12 @@
 import type { AreaMap } from './grid';
 import { areaDisplayName } from './areaLabel';
-import { elementCatalogEntry, type Clue, type Puzzle } from '../types/puzzle';
+import { resolveElementType, type Clue, type Puzzle } from '../types/puzzle';
 
 const DIRECTION_LABEL: Record<string, string> = { N: 'a Nord di', S: 'a Sud di', E: 'a Est di', O: 'a Ovest di' };
 
 function elementLabel(elementId: string, puzzle: Puzzle): string {
   const el = puzzle.elements.find((e) => e.id === elementId);
-  return el ? (elementCatalogEntry(el.type)?.label ?? '?') : '?';
+  return el ? (resolveElementType(el.type, puzzle.customElementTypes)?.label ?? '?') : '?';
 }
 
 function targetLabel(clue: Extract<Clue, { type: 'direction' }>, puzzle: Puzzle): string {

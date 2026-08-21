@@ -23,18 +23,18 @@ export function parseCellId(id: CellId): { row: number; col: number } {
 
 export type Direction = 'N' | 'S' | 'E' | 'O';
 
-/** Catalogo fisso degli oggetti piazzabili sulla mappa: solo icona, nessun nome libero. */
+/** Catalogo fisso degli oggetti piazzabili sulla mappa: icona, nome ed occupabilità. */
 export const ELEMENT_CATALOG = [
-  { type: 'chair', icon: '🪑', label: 'Sedia' },
-  { type: 'rug', icon: '🟫', label: 'Tappeto' },
-  { type: 'table', icon: '🍽️', label: 'Tavolo' },
-  { type: 'bush', icon: '🌿', label: 'Cespuglio' },
-  { type: 'tree', icon: '🌳', label: 'Albero' },
-  { type: 'rock', icon: '🪨', label: 'Roccia' },
-  { type: 'plant', icon: '🪴', label: 'Pianta in vaso' },
-  { type: 'bookshelf', icon: '📚', label: 'Libreria' },
-  { type: 'tv', icon: '📺', label: 'TV' },
-  { type: 'crate', icon: '🛢️', label: 'Cassa/Barile' },
+  { type: 'chair', icon: '🪑', label: 'Sedia', occupiable: true },
+  { type: 'rug', icon: '🟫', label: 'Tappeto', occupiable: true },
+  { type: 'table', icon: '🍽️', label: 'Tavolo', occupiable: false },
+  { type: 'bush', icon: '🌿', label: 'Cespuglio', occupiable: true },
+  { type: 'tree', icon: '🌳', label: 'Albero', occupiable: true },
+  { type: 'rock', icon: '🪨', label: 'Roccia', occupiable: true },
+  { type: 'plant', icon: '🪴', label: 'Pianta in vaso', occupiable: true },
+  { type: 'bookshelf', icon: '📚', label: 'Libreria', occupiable: true },
+  { type: 'tv', icon: '📺', label: 'TV', occupiable: true },
+  { type: 'crate', icon: '🛢️', label: 'Cassa/Barile', occupiable: true },
 ] as const;
 
 export type ElementType = (typeof ELEMENT_CATALOG)[number]['type'];
@@ -43,10 +43,36 @@ export function elementCatalogEntry(type: string) {
   return ELEMENT_CATALOG.find((e) => e.type === type);
 }
 
+/** Tipo di oggetto creato dal designer nell'editor, con un'immagine al posto di un'icona. */
+export interface CustomElementType {
+  id: string;
+  name: string;
+  /** Data URI (immagine caricata) oppure URL diretto ad un'immagine */
+  image: string;
+  /** Se false, nessun sospettato può avere la sua cella soluzione su questo oggetto */
+  occupiable: boolean;
+}
+
+export interface ResolvedElementType {
+  label: string;
+  occupiable: boolean;
+  icon?: string;
+  image?: string;
+}
+
+/** Risolve un tipo di oggetto (catalogo fisso o personalizzato del puzzle) nella sua definizione. */
+export function resolveElementType(type: string, customTypes: CustomElementType[]): ResolvedElementType | undefined {
+  const builtin = elementCatalogEntry(type);
+  if (builtin) return builtin;
+  const custom = customTypes.find((c) => c.id === type);
+  if (!custom) return undefined;
+  return { label: custom.name, occupiable: custom.occupiable, image: custom.image };
+}
+
 export interface MapElement {
   id: string;
-  /** Tipo di oggetto: chiave nel catalogo ELEMENT_CATALOG, determina icona e nome */
-  type: ElementType;
+  /** Tipo di oggetto: chiave in ELEMENT_CATALOG oppure id di un CustomElementType del puzzle */
+  type: string;
   cellId: CellId;
 }
 
@@ -142,6 +168,7 @@ export interface Puzzle {
   /** Muro tra (row,col) e (row+1,col): CellId della cella sopra il muro */
   wallsBottom: CellId[];
   elements: MapElement[];
+  customElementTypes: CustomElementType[];
   areaNames: AreaName[];
   suspects: Suspect[];
   killerId: string | null;
@@ -180,6 +207,7 @@ export function createEmptyPuzzle(width: number, height: number): Puzzle {
     wallsRight: [],
     wallsBottom: [],
     elements: [],
+    customElementTypes: [],
     areaNames: [],
     suspects,
     killerId: null,

@@ -7,7 +7,7 @@ import { areaCentroidCell, computeAreas } from '../lib/grid';
 import { describeClue } from '../lib/describeClue';
 import { areaCustomName, areaDisplayName } from '../lib/areaLabel';
 import { findVictimCell, victimLetter, type Positions } from '../lib/solve';
-import { elementCatalogEntry, parseCellId, type CellId, type Puzzle } from '../types/puzzle';
+import { parseCellId, resolveElementType, type CellId, type Puzzle } from '../types/puzzle';
 
 export default function PlayPage() {
   const { id } = useParams();
@@ -82,6 +82,12 @@ export default function PlayPage() {
     }
     if (isLockedForOther(c, selectedSuspectId)) {
       alert('Riga o colonna già occupata da un altro sospettato confermato.');
+      return;
+    }
+    const el = puzzle.elements.find((e) => e.cellId === c);
+    const elEntry = el ? resolveElementType(el.type, puzzle.customElementTypes) : undefined;
+    if (elEntry && !elEntry.occupiable) {
+      alert(`Un sospettato non può stare sopra "${elEntry.label}".`);
       return;
     }
     confirmSuspect(selectedSuspectId, c);
@@ -166,7 +172,7 @@ export default function PlayPage() {
           onCellLongPress={onCellLongPress}
           renderCell={(c) => {
             const el = puzzle.elements.find((e) => e.cellId === c);
-            const elEntry = el ? elementCatalogEntry(el.type) : undefined;
+            const elEntry = el ? resolveElementType(el.type, puzzle.customElementTypes) : undefined;
             const confirmedSuspect = puzzle.suspects.find((s) => confirmed[s.id] === c);
             const candidateIds = playState.candidates[c] ?? [];
             const areaId = areas.cellArea[c];
@@ -175,7 +181,11 @@ export default function PlayPage() {
             return (
               <>
                 {name && <span className="mk-area-name">{name}</span>}
-                {elEntry && <span className="mk-element-icon" title={elEntry.label}>{elEntry.icon}</span>}
+                {elEntry && (
+                  <span className="mk-element-icon" title={elEntry.label}>
+                    {elEntry.image ? <img src={elEntry.image} alt="" /> : elEntry.icon}
+                  </span>
+                )}
                 {confirmedSuspect && (
                   <span className="mk-confirmed" style={{ background: confirmedSuspect.color }}>
                     {confirmedSuspect.name[0]?.toUpperCase()}

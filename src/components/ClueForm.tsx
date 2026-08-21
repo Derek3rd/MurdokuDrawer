@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { AreaMap } from '../lib/grid';
 import { areaDisplayName } from '../lib/areaLabel';
-import { elementCatalogEntry, type Clue, type ClueTargetType, type Direction, type DistributiveOmit, type Puzzle } from '../types/puzzle';
+import { resolveElementType, type Clue, type ClueTargetType, type Direction, type DistributiveOmit, type Puzzle } from '../types/puzzle';
 
 type ClueType = Clue['type'];
 
@@ -37,7 +37,7 @@ export default function ClueForm({ puzzle, suspectId, areas, onSubmit, onCancel 
   const otherSuspects = puzzle.suspects.filter((s) => s.id !== suspectId);
   const targetOptions =
     targetType === 'suspect' ? otherSuspects.map((s) => ({ id: s.id, label: s.name }))
-    : targetType === 'element' ? puzzle.elements.map((e) => ({ id: e.id, label: elementCatalogEntry(e.type)?.label ?? '?' }))
+    : targetType === 'element' ? puzzle.elements.map((e) => ({ id: e.id, label: resolveElementType(e.type, puzzle.customElementTypes)?.label ?? '?' }))
     : [];
 
   const submit = () => {
@@ -146,10 +146,10 @@ export default function ClueForm({ puzzle, suspectId, areas, onSubmit, onCancel 
           <select value={elementId} onChange={(e) => setElementId(e.target.value)}>
             {puzzle.elements.length === 0 && <option value="">Nessun oggetto sulla mappa</option>}
             {puzzle.elements.map((el) => {
-              const entry = elementCatalogEntry(el.type);
+              const entry = resolveElementType(el.type, puzzle.customElementTypes);
               return (
                 <option key={el.id} value={el.id}>
-                  {entry?.icon} {entry?.label ?? '?'} ({el.cellId})
+                  {entry?.icon ?? ''} {entry?.label ?? '?'} ({el.cellId})
                 </option>
               );
             })}
