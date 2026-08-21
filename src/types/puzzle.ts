@@ -29,12 +29,15 @@ export const ELEMENT_CATALOG = [
   { type: 'rug', icon: '🟫', label: 'Tappeto', occupiable: true },
   { type: 'table', icon: '🍽️', label: 'Tavolo', occupiable: false },
   { type: 'bush', icon: '🌿', label: 'Cespuglio', occupiable: true },
-  { type: 'tree', icon: '🌳', label: 'Albero', occupiable: true },
+  { type: 'tree', icon: '🌳', label: 'Albero', occupiable: false },
   { type: 'rock', icon: '🪨', label: 'Roccia', occupiable: true },
-  { type: 'plant', icon: '🪴', label: 'Pianta in vaso', occupiable: true },
-  { type: 'bookshelf', icon: '📚', label: 'Libreria', occupiable: true },
-  { type: 'tv', icon: '📺', label: 'TV', occupiable: true },
+  { type: 'plant', icon: '🪴', label: 'Pianta in vaso', occupiable: false },
+  { type: 'bookshelf', icon: '📚', label: 'Libreria', occupiable: false },
+  { type: 'tv', icon: '📺', label: 'TV', occupiable: false },
   { type: 'crate', icon: '🛢️', label: 'Cassa/Barile', occupiable: true },
+  { type: 'cone', icon: '🔺', label: 'Cono', occupiable: false },
+  { type: 'statue', icon: '🗿', label: 'Statua', occupiable: false },
+  { type: 'log', icon: '🪵', label: 'Tronco', occupiable: false },
 ] as const;
 
 export type ElementType = (typeof ELEMENT_CATALOG)[number]['type'];
