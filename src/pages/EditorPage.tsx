@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { GridCanvas } from '../components/GridCanvas';
 import ClueForm from '../components/ClueForm';
 import { useEditorStore } from '../store/useEditorStore';
-import { computeAreas } from '../lib/grid';
+import { areaCentroidCell, computeAreas } from '../lib/grid';
 import { areaDisplayName, areaCustomName } from '../lib/areaLabel';
 import { describeClue } from '../lib/describeClue';
 import { downloadPuzzleAsFile } from '../storage/puzzleStorage';
@@ -183,7 +183,9 @@ export default function EditorPage() {
           renderCell={(c) => {
             const el = elementAt(c);
             const sus = suspectAt(c);
-            const name = puzzle.areaNames.find((a) => a.cellId === c)?.name;
+            const areaId = areas.cellArea[c];
+            const areaName = areaCustomName(areaId, puzzle.areaNames, areas);
+            const name = areaName && areaCentroidCell(areas.areaCells[areaId]) === c ? areaName : undefined;
             return (
               <>
                 {name && <span className="mk-area-name">{name}</span>}

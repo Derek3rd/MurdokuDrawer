@@ -3,9 +3,9 @@ import { useParams, Link } from 'react-router-dom';
 import { GridCanvas } from '../components/GridCanvas';
 import { usePlayStore } from '../store/usePlayStore';
 import { loadPuzzle } from '../storage/puzzleStorage';
-import { computeAreas } from '../lib/grid';
+import { areaCentroidCell, computeAreas } from '../lib/grid';
 import { describeClue } from '../lib/describeClue';
-import { areaDisplayName } from '../lib/areaLabel';
+import { areaCustomName, areaDisplayName } from '../lib/areaLabel';
 import { findVictimCell, victimLetter, type Positions } from '../lib/solve';
 import { elementCatalogEntry, parseCellId, type CellId, type Puzzle } from '../types/puzzle';
 
@@ -169,7 +169,9 @@ export default function PlayPage() {
             const elEntry = el ? elementCatalogEntry(el.type) : undefined;
             const confirmedSuspect = puzzle.suspects.find((s) => confirmed[s.id] === c);
             const candidateIds = playState.candidates[c] ?? [];
-            const name = puzzle.areaNames.find((a) => a.cellId === c)?.name;
+            const areaId = areas.cellArea[c];
+            const areaName = areaCustomName(areaId, puzzle.areaNames, areas);
+            const name = areaName && areaCentroidCell(areas.areaCells[areaId]) === c ? areaName : undefined;
             return (
               <>
                 {name && <span className="mk-area-name">{name}</span>}

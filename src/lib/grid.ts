@@ -61,6 +61,28 @@ export function computeAreas(puzzle: Pick<Puzzle, 'width' | 'height' | 'wallsRig
   return { cellArea, areaCells, areaIds };
 }
 
+/**
+ * Cella più vicina al centro geometrico di un'area: usata per mostrare il nome
+ * dell'area come etichetta della zona nel suo insieme, non di una cella
+ * specifica. Ricalcolata sulla forma attuale della zona, quindi resta
+ * centrata anche se l'area cambia forma modificando i muri altrove.
+ */
+export function areaCentroidCell(cells: CellId[]): CellId {
+  const parsed = cells.map(parseCellId);
+  const avgRow = parsed.reduce((sum, p) => sum + p.row, 0) / parsed.length;
+  const avgCol = parsed.reduce((sum, p) => sum + p.col, 0) / parsed.length;
+  let best = cells[0];
+  let bestDist = Infinity;
+  for (let i = 0; i < cells.length; i++) {
+    const d = (parsed[i].row - avgRow) ** 2 + (parsed[i].col - avgCol) ** 2;
+    if (d < bestDist) {
+      bestDist = d;
+      best = cells[i];
+    }
+  }
+  return best;
+}
+
 export function isAdjacent(a: CellId, b: CellId): boolean {
   const ca = parseCellId(a);
   const cb = parseCellId(b);
