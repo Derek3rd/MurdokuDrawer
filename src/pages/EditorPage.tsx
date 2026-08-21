@@ -38,14 +38,15 @@ export default function EditorPage() {
   const elementAt = (c: CellId) => puzzle.elements.find((e) => e.cellId === c);
   const suspectAt = (c: CellId) => puzzle.suspects.find((s) => s.solutionCellId === c);
 
-  const rowColConflict = (c: CellId, suspectId: string): boolean => {
+  // Cella esclusa dalla riga/colonna di un qualsiasi sospettato già piazzato: indicazione
+  // sempre visibile, indipendente da quale sospettato è selezionato nello strumento.
+  const isExcludedCell = (c: CellId): boolean => {
     const { row, col } = parseCellId(c);
-    return puzzle.suspects.some(
-      (s) =>
-        s.id !== suspectId &&
-        s.solutionCellId &&
-        (parseCellId(s.solutionCellId).row === row || parseCellId(s.solutionCellId).col === col),
-    );
+    return puzzle.suspects.some((s) => {
+      if (!s.solutionCellId || s.solutionCellId === c) return false;
+      const p = parseCellId(s.solutionCellId);
+      return p.row === row || p.col === col;
+    });
   };
 
   const onCellClick = (c: CellId) => {
@@ -175,7 +176,7 @@ export default function EditorPage() {
           onEdgeClick={onEdgeClick}
           onCellClick={onCellClick}
           cellClassName={(c) => {
-            if (tool === 'suspects' && selectedSuspectId && rowColConflict(c, selectedSuspectId)) return 'locked';
+            if (tool === 'suspects' && isExcludedCell(c)) return 'locked';
             if (victim.cellId === c) return 'victim';
             return undefined;
           }}

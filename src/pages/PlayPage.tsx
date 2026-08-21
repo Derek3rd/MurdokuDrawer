@@ -12,7 +12,7 @@ import { elementCatalogEntry, parseCellId, type CellId, type Puzzle } from '../t
 export default function PlayPage() {
   const { id } = useParams();
   const [puzzle, setPuzzle] = useState<Puzzle | null>(null);
-  const { puzzleId, playState, history, load, toggleCandidate, confirmSuspect, unconfirmSuspect, undo, reset } =
+  const { puzzleId, playState, history, load, cycleMark, confirmSuspect, unconfirmSuspect, undo, reset } =
     usePlayStore();
   const [selectedSuspectId, setSelectedSuspectId] = useState<string | null>(null);
   const [result, setResult] = useState<'pending' | 'correct' | 'incorrect'>('pending');
@@ -54,11 +54,13 @@ export default function PlayPage() {
     });
   };
 
-  // Click breve: segna/toglie un candidato per il sospettato selezionato.
+  // Click breve: fa avanzare l'annotazione per il sospettato selezionato
+  // (vuoto -> candidato -> esclusione manuale -> vuoto). Le X automatiche di riga/
+  // colonna sono un'altra cosa: calcolate a parte, il giocatore non può toglierle.
   const onCellTap = (c: CellId) => {
     if (!selectedSuspectId) return;
-    if (confirmed[selectedSuspectId]) return; // già confermato, niente candidati
-    toggleCandidate(c, selectedSuspectId);
+    if (confirmed[selectedSuspectId]) return; // già confermato, niente annotazioni
+    cycleMark(c, selectedSuspectId);
     setResult('pending');
   };
 
@@ -116,8 +118,9 @@ export default function PlayPage() {
         </div>
 
         <p style={{ fontSize: '0.85rem', color: '#666' }}>
-          Seleziona un sospettato, poi tocca una cella per segnare un candidato, oppure tieni premuto per confermarne
-          la posizione definitiva.
+          Seleziona un sospettato, poi tocca una cella per segnare un candidato (●), tocca di nuovo per
+          un'esclusione manuale (✕), un terzo tocco la cancella. Tieni premuto per confermarne la posizione
+          definitiva. Le X grigie sono automatiche (riga/colonna già occupata) e non si possono togliere.
         </p>
 
         <div className="mk-toolbar">
@@ -154,6 +157,7 @@ export default function PlayPage() {
             const elEntry = el ? elementCatalogEntry(el.type) : undefined;
             const confirmedSuspect = puzzle.suspects.find((s) => confirmed[s.id] === c);
             const candidateIds = playState.candidates[c] ?? [];
+            const excludedIds = playState.manualExclusions[c] ?? [];
             const name = puzzle.areaNames.find((a) => a.cellId === c)?.name;
             return (
               <>
@@ -164,11 +168,20 @@ export default function PlayPage() {
                     {confirmedSuspect.name[0]?.toUpperCase()}
                   </span>
                 )}
-                {!confirmedSuspect && candidateIds.length > 0 && (
+                {!confirmedSuspect && (candidateIds.length > 0 || excludedIds.length > 0) && (
                   <div className="mk-candidate-grid">
-                    {candidateIds.map((sid) => {
-                      const s = puzzle.suspects.find((x) => x.id === sid);
-                      return s ? <span key={sid} className="mk-candidate-dot" style={{ background: s.color }} /> : null;
+                    {puzzle.suspects.map((s) => {
+                      if (candidateIds.includes(s.id)) {
+                        return <span key={s.id} className="mk-candidate-dot" style={{ background: s.color }} />;
+                      }
+                      if (excludedIds.includes(s.id)) {
+                        return (
+                          <span key={s.id} className="mk-candidate-x" style={{ color: s.color }}>
+                            ✕
+                          </span>
+                        );
+                      }
+                      return null;
                     })}
                   </div>
                 )}
