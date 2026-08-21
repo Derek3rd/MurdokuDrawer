@@ -8,6 +8,7 @@
   border: 4px solid #1a1a1a;
   border-radius: 8px;
   box-sizing: border-box;
+  touch-action: none;
 }
 
 .mk-cell {
