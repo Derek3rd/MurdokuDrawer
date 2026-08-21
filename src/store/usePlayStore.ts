@@ -9,8 +9,9 @@ interface PlayStoreState {
   playState: PlayState;
   history: PlayState[];
   load: (puzzleId: string) => void;
-  /** Fa avanzare lo stato cella/sospettato: vuoto -> candidato -> esclusione manuale -> vuoto. */
-  cycleMark: (cellId: string, suspectId: string) => void;
+  toggleCandidate: (cellId: string, suspectId: string) => void;
+  /** Segna/toglie manualmente una cella come "non può essere occupata", a prescindere dal sospettato. */
+  toggleManualMark: (cellId: string) => void;
   confirmSuspect: (suspectId: string, cellId: string) => void;
   unconfirmSuspect: (suspectId: string) => void;
   undo: () => void;
@@ -37,46 +38,41 @@ export const usePlayStore = create<PlayStoreState>((set) => ({
 
   load: (puzzleId) => set({ puzzleId, playState: loadPlayState(puzzleId), history: [] }),
 
-  cycleMark: (cellId, suspectId) =>
+  toggleCandidate: (cellId, suspectId) =>
     set((s) => {
-      const cand = s.playState.candidates[cellId] ?? [];
-      const excl = s.playState.manualExclusions[cellId] ?? [];
-      let nextCand = cand;
-      let nextExcl = excl;
-      if (cand.includes(suspectId)) {
-        // candidato -> esclusione manuale
-        nextCand = cand.filter((id) => id !== suspectId);
-        nextExcl = [...excl, suspectId];
-      } else if (excl.includes(suspectId)) {
-        // esclusione manuale -> vuoto
-        nextExcl = excl.filter((id) => id !== suspectId);
-      } else {
-        // vuoto -> candidato
-        nextCand = [...cand, suspectId];
-      }
-      const candidates = { ...s.playState.candidates, [cellId]: nextCand };
-      const manualExclusions = { ...s.playState.manualExclusions, [cellId]: nextExcl };
-      return applyChange(s, { ...s.playState, candidates, manualExclusions });
+      const current = s.playState.candidates[cellId] ?? [];
+      const has = current.includes(suspectId);
+      const next = has ? current.filter((id) => id !== suspectId) : [...current, suspectId];
+      const candidates = { ...s.playState.candidates, [cellId]: next };
+      return applyChange(s, { ...s.playState, candidates });
+    }),
+
+  toggleManualMark: (cellId) =>
+    set((s) => {
+      const has = s.playState.manualMarks.includes(cellId);
+      const manualMarks = has
+        ? s.playState.manualMarks.filter((c) => c !== cellId)
+        : [...s.playState.manualMarks, cellId];
+      return applyChange(s, { ...s.playState, manualMarks });
     }),
 
   confirmSuspect: (suspectId, cellId) =>
     set((s) => {
       const confirmed = { ...s.playState.confirmed, [suspectId]: cellId };
       // Riga e colonna della cella confermata non possono più ospitare nessun altro
-      // sospettato: rimuove ogni annotazione manuale (candidato o esclusione) segnata
-      // lì, per chiunque. Le X automatiche di riga/colonna restano calcolate a parte
-      // e non sono mai salvate qui, quindi non possono essere rimosse dal giocatore.
+      // sospettato: rimuove ogni candidato e ogni segno manuale ormai ridondante lì
+      // (la stessa esclusione è già coperta dalla X automatica). Le X automatiche di
+      // riga/colonna restano calcolate a parte e non sono mai salvate qui, quindi non
+      // possono essere rimosse dal giocatore.
       const { row, col } = parseCellId(cellId);
-      const candidates = { ...s.playState.candidates };
-      const manualExclusions = { ...s.playState.manualExclusions };
-      for (const cid of Object.keys({ ...candidates, ...manualExclusions })) {
+      const inRowOrCol = (cid: string) => {
         const p = parseCellId(cid);
-        if (p.row === row || p.col === col) {
-          delete candidates[cid];
-          delete manualExclusions[cid];
-        }
-      }
-      return applyChange(s, { ...s.playState, candidates, manualExclusions, confirmed });
+        return p.row === row || p.col === col;
+      };
+      const candidates = { ...s.playState.candidates };
+      for (const cid of Object.keys(candidates)) if (inRowOrCol(cid)) delete candidates[cid];
+      const manualMarks = s.playState.manualMarks.filter((cid) => !inRowOrCol(cid));
+      return applyChange(s, { ...s.playState, candidates, manualMarks, confirmed });
     }),
 
   unconfirmSuspect: (suspectId) =>
