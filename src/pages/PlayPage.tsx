@@ -9,14 +9,11 @@ import { areaDisplayName } from '../lib/areaLabel';
 import { findVictimCell, victimLetter, type Positions } from '../lib/solve';
 import { elementCatalogEntry, parseCellId, type CellId, type Puzzle } from '../types/puzzle';
 
-type Mode = 'candidate' | 'confirm';
-
 export default function PlayPage() {
   const { id } = useParams();
   const [puzzle, setPuzzle] = useState<Puzzle | null>(null);
   const { puzzleId, playState, history, load, toggleCandidate, confirmSuspect, unconfirmSuspect, undo, reset } =
     usePlayStore();
-  const [mode, setMode] = useState<Mode>('candidate');
   const [selectedSuspectId, setSelectedSuspectId] = useState<string | null>(null);
   const [result, setResult] = useState<'pending' | 'correct' | 'incorrect'>('pending');
 
@@ -43,22 +40,27 @@ export default function PlayPage() {
     });
   };
 
-  const onCellClick = (c: CellId) => {
+  // Click breve: segna/toglie un candidato per il sospettato selezionato.
+  const onCellTap = (c: CellId) => {
     if (!selectedSuspectId) return;
-    if (mode === 'candidate') {
-      if (confirmed[selectedSuspectId]) return; // già confermato, niente candidati
-      toggleCandidate(c, selectedSuspectId);
-    } else {
-      if (confirmed[selectedSuspectId] === c) {
-        unconfirmSuspect(selectedSuspectId);
-        return;
-      }
-      if (isLockedForOther(c, selectedSuspectId)) {
-        alert('Riga o colonna già occupata da un altro sospettato confermato.');
-        return;
-      }
-      confirmSuspect(selectedSuspectId, c);
+    if (confirmed[selectedSuspectId]) return; // già confermato, niente candidati
+    toggleCandidate(c, selectedSuspectId);
+    setResult('pending');
+  };
+
+  // Pressione prolungata: conferma (o rimuove la conferma) la posizione definitiva.
+  const onCellLongPress = (c: CellId) => {
+    if (!selectedSuspectId) return;
+    if (confirmed[selectedSuspectId] === c) {
+      unconfirmSuspect(selectedSuspectId);
+      setResult('pending');
+      return;
     }
+    if (isLockedForOther(c, selectedSuspectId)) {
+      alert('Riga o colonna già occupata da un altro sospettato confermato.');
+      return;
+    }
+    confirmSuspect(selectedSuspectId, c);
     setResult('pending');
   };
 
@@ -99,13 +101,12 @@ export default function PlayPage() {
           ))}
         </div>
 
+        <p style={{ fontSize: '0.85rem', color: '#666' }}>
+          Seleziona un sospettato, poi tocca una cella per segnare un candidato, oppure tieni premuto per confermarne
+          la posizione definitiva.
+        </p>
+
         <div className="mk-toolbar">
-          <button className={`mk-btn ${mode === 'candidate' ? '' : 'secondary'}`} onClick={() => setMode('candidate')}>
-            ✏️ Segna candidato
-          </button>
-          <button className={`mk-btn ${mode === 'confirm' ? '' : 'secondary'}`} onClick={() => setMode('confirm')}>
-            ✅ Conferma posizione
-          </button>
           <button className="mk-btn" onClick={checkSolution}>
             Verifica soluzione
           </button>
@@ -128,12 +129,13 @@ export default function PlayPage() {
         <GridCanvas
           puzzle={puzzle}
           cellClassName={(c) => {
-            if (selectedSuspectId && mode === 'confirm' && !confirmed[selectedSuspectId] && isLockedForOther(c, selectedSuspectId))
+            if (selectedSuspectId && !confirmed[selectedSuspectId] && isLockedForOther(c, selectedSuspectId))
               return 'locked';
             if (victim.cellId === c) return 'victim';
             return undefined;
           }}
-          onCellClick={onCellClick}
+          onCellClick={onCellTap}
+          onCellLongPress={onCellLongPress}
           renderCell={(c) => {
             const el = puzzle.elements.find((e) => e.cellId === c);
             const elEntry = el ? elementCatalogEntry(el.type) : undefined;
