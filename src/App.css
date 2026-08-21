@@ -1,0 +1,193 @@
+.mk-header {
+  display: flex;
+  align-items: center;
+  padding: 0.75rem 1.25rem;
+  background: #1a1a1a;
+  color: #fff;
+}
+
+.mk-brand {
+  color: #fff;
+  text-decoration: none;
+  font-weight: 700;
+  font-size: 1.2rem;
+}
+
+.mk-main {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 1.25rem;
+}
+
+.mk-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.mk-card {
+  background: #fff;
+  border: 1px solid #e2e2e2;
+  border-radius: 8px;
+  padding: 1rem;
+  margin-bottom: 1rem;
+}
+
+.mk-btn {
+  cursor: pointer;
+  border: 1px solid #1a1a1a;
+  background: #1a1a1a;
+  color: #fff;
+  padding: 0.4rem 0.8rem;
+  border-radius: 6px;
+  font-size: 0.9rem;
+}
+
+.mk-btn.secondary {
+  background: #fff;
+  color: #1a1a1a;
+}
+
+.mk-btn.danger {
+  background: #d90429;
+  border-color: #d90429;
+}
+
+.mk-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.mk-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.mk-list li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.6rem 0;
+  border-bottom: 1px solid #eee;
+}
+
+.mk-list li a {
+  font-weight: 600;
+  color: #1a1a1a;
+}
+
+.mk-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.85rem;
+}
+
+.mk-field input,
+.mk-field select,
+.mk-field textarea {
+  padding: 0.35rem 0.5rem;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 0.9rem;
+}
+
+.mk-row {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.mk-badge {
+  display: inline-block;
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  color: #fff;
+}
+
+.mk-suspect-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  color: #fff;
+  cursor: pointer;
+  border: 2px solid transparent;
+}
+
+.mk-suspect-pill.active {
+  border-color: #1a1a1a;
+}
+
+.mk-candidate-grid {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1px;
+  padding: 2px;
+  pointer-events: none;
+}
+
+.mk-candidate-dot {
+  border-radius: 50%;
+  width: 10px;
+  height: 10px;
+  margin: auto;
+}
+
+.mk-confirmed {
+  width: 80%;
+  height: 80%;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-weight: 700;
+  font-size: 0.85rem;
+}
+
+.mk-element-icon {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  font-size: 1rem;
+}
+
+.mk-clue-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.mk-clue-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.4rem 0.6rem;
+  background: #f8f8f8;
+  border-radius: 6px;
+  font-size: 0.85rem;
+}
+
+.mk-status-ok {
+  color: #2a9d8f;
+}
+
+.mk-status-bad {
+  color: #d90429;
+}
+
+.mk-status-unknown {
+  color: #888;
+}

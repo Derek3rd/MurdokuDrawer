@@ -1,0 +1,62 @@
+.mk-grid {
+  display: grid;
+  width: min(90vw, 640px);
+  aspect-ratio: 1 / 1;
+  margin: 0 auto;
+  background: #cfcfcf;
+  padding: 4px;
+  border: 4px solid #1a1a1a;
+  border-radius: 8px;
+  box-sizing: border-box;
+}
+
+.mk-cell {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  cursor: pointer;
+  font-size: 1.4rem;
+  user-select: none;
+}
+
+.mk-cell.locked {
+  filter: brightness(0.8) saturate(0.6);
+  cursor: not-allowed;
+}
+
+.mk-cell.conflict {
+  outline: 3px solid #d90429;
+  outline-offset: -3px;
+}
+
+.mk-cell.victim {
+  outline: 3px dashed #7209b7;
+  outline-offset: -3px;
+}
+
+.mk-cell.selected {
+  outline: 3px solid #1d3557;
+  outline-offset: -3px;
+}
+
+.mk-edge {
+  background: transparent;
+}
+
+.mk-edge.mk-editable {
+  cursor: pointer;
+}
+
+.mk-edge.mk-wall {
+  background: #1a1a1a;
+}
+
+.mk-edge.mk-editable:hover {
+  background: #adb5bd;
+}
+
+.mk-edge.mk-editable.mk-wall:hover {
+  background: #333;
+}
