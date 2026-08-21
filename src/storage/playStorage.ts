@@ -1,12 +1,14 @@
 export interface PlayState {
   /** cellId -> lista di suspectId segnati come candidati in quella cella */
   candidates: Record<string, string[]>;
+  /** cellId -> lista di suspectId esclusi manualmente da quella cella (nota del giocatore) */
+  manualExclusions: Record<string, string[]>;
   /** suspectId -> cellId confermato */
   confirmed: Record<string, string>;
 }
 
 export function emptyPlayState(): PlayState {
-  return { candidates: {}, confirmed: {} };
+  return { candidates: {}, manualExclusions: {}, confirmed: {} };
 }
 
 function key(puzzleId: string): string {
@@ -16,7 +18,8 @@ function key(puzzleId: string): string {
 export function loadPlayState(puzzleId: string): PlayState {
   try {
     const raw = localStorage.getItem(key(puzzleId));
-    return raw ? (JSON.parse(raw) as PlayState) : emptyPlayState();
+    if (!raw) return emptyPlayState();
+    return { ...emptyPlayState(), ...(JSON.parse(raw) as Partial<PlayState>) };
   } catch {
     return emptyPlayState();
   }

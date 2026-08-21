@@ -9,14 +9,11 @@ import { areaDisplayName } from '../lib/areaLabel';
 import { findVictimCell, victimLetter, type Positions } from '../lib/solve';
 import { elementCatalogEntry, parseCellId, type CellId, type Puzzle } from '../types/puzzle';
 
-type Mode = 'candidate' | 'confirm';
-
 export default function PlayPage() {
   const { id } = useParams();
   const [puzzle, setPuzzle] = useState<Puzzle | null>(null);
-  const { puzzleId, playState, history, load, toggleCandidate, confirmSuspect, unconfirmSuspect, undo, reset } =
+  const { puzzleId, playState, history, load, cycleMark, confirmSuspect, unconfirmSuspect, undo, reset } =
     usePlayStore();
-  const [mode, setMode] = useState<Mode>('candidate');
   const [selectedSuspectId, setSelectedSuspectId] = useState<string | null>(null);
   const [result, setResult] = useState<'pending' | 'correct' | 'incorrect'>('pending');
 
@@ -34,6 +31,9 @@ export default function PlayPage() {
 
   const confirmed = playState.confirmed;
 
+  // Blocca il tentativo di confermare `suspectId` in `c` se la riga/colonna è già
+  // occupata da un altro sospettato confermato (esclude la propria posizione attuale,
+  // per permettere di spostare la conferma).
   const isLockedForOther = (c: CellId, suspectId: string): boolean => {
     const { row, col } = parseCellId(c);
     return Object.entries(confirmed).some(([sid, cid]) => {
@@ -43,22 +43,40 @@ export default function PlayPage() {
     });
   };
 
-  const onCellClick = (c: CellId) => {
+  // Cella esclusa da un qualsiasi sospettato già confermato (stessa riga o colonna):
+  // indicazione sempre visibile, indipendente da quale sospettato è selezionato.
+  const isExcludedCell = (c: CellId): boolean => {
+    const { row, col } = parseCellId(c);
+    return Object.values(confirmed).some((cid) => {
+      if (cid === c) return false;
+      const p = parseCellId(cid);
+      return p.row === row || p.col === col;
+    });
+  };
+
+  // Click breve: fa avanzare l'annotazione per il sospettato selezionato
+  // (vuoto -> candidato -> esclusione manuale -> vuoto). Le X automatiche di riga/
+  // colonna sono un'altra cosa: calcolate a parte, il giocatore non può toglierle.
+  const onCellTap = (c: CellId) => {
     if (!selectedSuspectId) return;
-    if (mode === 'candidate') {
-      if (confirmed[selectedSuspectId]) return; // già confermato, niente candidati
-      toggleCandidate(c, selectedSuspectId);
-    } else {
-      if (confirmed[selectedSuspectId] === c) {
-        unconfirmSuspect(selectedSuspectId);
-        return;
-      }
-      if (isLockedForOther(c, selectedSuspectId)) {
-        alert('Riga o colonna già occupata da un altro sospettato confermato.');
-        return;
-      }
-      confirmSuspect(selectedSuspectId, c);
+    if (confirmed[selectedSuspectId]) return; // già confermato, niente annotazioni
+    cycleMark(c, selectedSuspectId);
+    setResult('pending');
+  };
+
+  // Pressione prolungata: conferma (o rimuove la conferma) la posizione definitiva.
+  const onCellLongPress = (c: CellId) => {
+    if (!selectedSuspectId) return;
+    if (confirmed[selectedSuspectId] === c) {
+      unconfirmSuspect(selectedSuspectId);
+      setResult('pending');
+      return;
     }
+    if (isLockedForOther(c, selectedSuspectId)) {
+      alert('Riga o colonna già occupata da un altro sospettato confermato.');
+      return;
+    }
+    confirmSuspect(selectedSuspectId, c);
     setResult('pending');
   };
 
@@ -99,13 +117,13 @@ export default function PlayPage() {
           ))}
         </div>
 
+        <p style={{ fontSize: '0.85rem', color: '#666' }}>
+          Seleziona un sospettato, poi tocca una cella per segnare un candidato (●), tocca di nuovo per
+          un'esclusione manuale (✕), un terzo tocco la cancella. Tieni premuto per confermarne la posizione
+          definitiva. Le X grigie sono automatiche (riga/colonna già occupata) e non si possono togliere.
+        </p>
+
         <div className="mk-toolbar">
-          <button className={`mk-btn ${mode === 'candidate' ? '' : 'secondary'}`} onClick={() => setMode('candidate')}>
-            ✏️ Segna candidato
-          </button>
-          <button className={`mk-btn ${mode === 'confirm' ? '' : 'secondary'}`} onClick={() => setMode('confirm')}>
-            ✅ Conferma posizione
-          </button>
           <button className="mk-btn" onClick={checkSolution}>
             Verifica soluzione
           </button>
@@ -128,17 +146,18 @@ export default function PlayPage() {
         <GridCanvas
           puzzle={puzzle}
           cellClassName={(c) => {
-            if (selectedSuspectId && mode === 'confirm' && !confirmed[selectedSuspectId] && isLockedForOther(c, selectedSuspectId))
-              return 'locked';
+            if (isExcludedCell(c)) return 'locked';
             if (victim.cellId === c) return 'victim';
             return undefined;
           }}
-          onCellClick={onCellClick}
+          onCellClick={onCellTap}
+          onCellLongPress={onCellLongPress}
           renderCell={(c) => {
             const el = puzzle.elements.find((e) => e.cellId === c);
             const elEntry = el ? elementCatalogEntry(el.type) : undefined;
             const confirmedSuspect = puzzle.suspects.find((s) => confirmed[s.id] === c);
             const candidateIds = playState.candidates[c] ?? [];
+            const excludedIds = playState.manualExclusions[c] ?? [];
             const name = puzzle.areaNames.find((a) => a.cellId === c)?.name;
             return (
               <>
@@ -149,11 +168,20 @@ export default function PlayPage() {
                     {confirmedSuspect.name[0]?.toUpperCase()}
                   </span>
                 )}
-                {!confirmedSuspect && candidateIds.length > 0 && (
+                {!confirmedSuspect && (candidateIds.length > 0 || excludedIds.length > 0) && (
                   <div className="mk-candidate-grid">
-                    {candidateIds.map((sid) => {
-                      const s = puzzle.suspects.find((x) => x.id === sid);
-                      return s ? <span key={sid} className="mk-candidate-dot" style={{ background: s.color }} /> : null;
+                    {puzzle.suspects.map((s) => {
+                      if (candidateIds.includes(s.id)) {
+                        return <span key={s.id} className="mk-candidate-dot" style={{ background: s.color }} />;
+                      }
+                      if (excludedIds.includes(s.id)) {
+                        return (
+                          <span key={s.id} className="mk-candidate-x" style={{ color: s.color }}>
+                            ✕
+                          </span>
+                        );
+                      }
+                      return null;
                     })}
                   </div>
                 )}

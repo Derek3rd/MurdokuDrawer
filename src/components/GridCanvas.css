@@ -20,11 +20,45 @@
   cursor: pointer;
   font-size: 1.4rem;
   user-select: none;
+  -webkit-touch-callout: none;
+}
+
+.mk-cell.pressing::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.2);
+  transform: scale(0);
+  animation: mk-press-fill 450ms linear forwards;
+  pointer-events: none;
+}
+
+@keyframes mk-press-fill {
+  from {
+    transform: scale(0);
+  }
+  to {
+    transform: scale(1.4);
+  }
 }
 
 .mk-cell.locked {
-  filter: brightness(0.8) saturate(0.6);
+  filter: brightness(0.92) saturate(0.6);
   cursor: not-allowed;
+}
+
+.mk-cell.locked::before {
+  content: '✕';
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: rgba(0, 0, 0, 0.4);
+  pointer-events: none;
 }
 
 .mk-cell.conflict {
