@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { emptyPlayState, loadPlayState, resetPlayState, savePlayState, type PlayState } from '../storage/playStorage';
+import { parseCellId } from '../types/puzzle';
 
 const MAX_HISTORY = 100;
 
@@ -47,7 +48,15 @@ export const usePlayStore = create<PlayStoreState>((set) => ({
   confirmSuspect: (suspectId, cellId) =>
     set((s) => {
       const confirmed = { ...s.playState.confirmed, [suspectId]: cellId };
-      return applyChange(s, { ...s.playState, confirmed });
+      // Riga e colonna della cella confermata non possono più ospitare nessun altro
+      // sospettato: rimuove ogni posizione probabile segnata lì, per chiunque.
+      const { row, col } = parseCellId(cellId);
+      const candidates = { ...s.playState.candidates };
+      for (const cid of Object.keys(candidates)) {
+        const p = parseCellId(cid);
+        if (p.row === row || p.col === col) delete candidates[cid];
+      }
+      return applyChange(s, { ...s.playState, candidates, confirmed });
     }),
 
   unconfirmSuspect: (suspectId) =>

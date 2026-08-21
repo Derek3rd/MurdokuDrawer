@@ -44,8 +44,21 @@
 }
 
 .mk-cell.locked {
-  filter: brightness(0.8) saturate(0.6);
+  filter: brightness(0.92) saturate(0.6);
   cursor: not-allowed;
+}
+
+.mk-cell.locked::before {
+  content: '✕';
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: rgba(0, 0, 0, 0.4);
+  pointer-events: none;
 }
 
 .mk-cell.conflict {

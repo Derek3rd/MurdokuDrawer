@@ -31,10 +31,24 @@ export default function PlayPage() {
 
   const confirmed = playState.confirmed;
 
+  // Blocca il tentativo di confermare `suspectId` in `c` se la riga/colonna è già
+  // occupata da un altro sospettato confermato (esclude la propria posizione attuale,
+  // per permettere di spostare la conferma).
   const isLockedForOther = (c: CellId, suspectId: string): boolean => {
     const { row, col } = parseCellId(c);
     return Object.entries(confirmed).some(([sid, cid]) => {
       if (sid === suspectId) return false;
+      const p = parseCellId(cid);
+      return p.row === row || p.col === col;
+    });
+  };
+
+  // Cella esclusa da un qualsiasi sospettato già confermato (stessa riga o colonna):
+  // indicazione sempre visibile, indipendente da quale sospettato è selezionato.
+  const isExcludedCell = (c: CellId): boolean => {
+    const { row, col } = parseCellId(c);
+    return Object.values(confirmed).some((cid) => {
+      if (cid === c) return false;
       const p = parseCellId(cid);
       return p.row === row || p.col === col;
     });
@@ -129,8 +143,7 @@ export default function PlayPage() {
         <GridCanvas
           puzzle={puzzle}
           cellClassName={(c) => {
-            if (selectedSuspectId && !confirmed[selectedSuspectId] && isLockedForOther(c, selectedSuspectId))
-              return 'locked';
+            if (isExcludedCell(c)) return 'locked';
             if (victim.cellId === c) return 'victim';
             return undefined;
           }}
