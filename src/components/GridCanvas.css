@@ -76,6 +76,10 @@
   outline-offset: -3px;
 }
 
+.mk-cell-disabled {
+  background: repeating-linear-gradient(45deg, #d8d8d8, #d8d8d8 6px, #ececec 6px, #ececec 12px);
+}
+
 .mk-edge {
   background: transparent;
 }
@@ -94,4 +98,24 @@
 
 .mk-edge.mk-editable.mk-wall:hover {
   background: #333;
+}
+
+.mk-window-edge {
+  background: transparent;
+}
+
+.mk-window-edge.mk-editable {
+  cursor: pointer;
+}
+
+.mk-window-edge.mk-window {
+  background: #4dabf7;
+}
+
+.mk-window-edge.mk-editable:hover {
+  background: #a5d8ff;
+}
+
+.mk-window-edge.mk-editable.mk-window:hover {
+  background: #74c0fc;
 }

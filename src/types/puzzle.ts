@@ -97,6 +97,12 @@ export interface AreaName {
   name: string;
 }
 
+/** Finestra su un lato del perimetro esterno della griglia (bordo rettangolare). */
+export interface WindowEdge {
+  cellId: CellId;
+  side: Direction;
+}
+
 export interface Suspect {
   id: string;
   name: string;
@@ -185,6 +191,9 @@ export interface Puzzle {
   elements: MapElement[];
   customElementTypes: CustomElementType[];
   areaNames: AreaName[];
+  windows: WindowEdge[];
+  /** Celle "buco": non fanno parte della mappa, per griglie non rettangolari */
+  disabledCells: CellId[];
   suspects: Suspect[];
   killerId: string | null;
   clues: Clue[];
@@ -224,6 +233,8 @@ export function createEmptyPuzzle(width: number, height: number): Puzzle {
     elements: [],
     customElementTypes: [],
     areaNames: [],
+    windows: [],
+    disabledCells: [],
     suspects,
     killerId: null,
     clues: [],

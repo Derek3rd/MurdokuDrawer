@@ -11,12 +11,16 @@ export interface AreaMap {
 /**
  * Calcola le aree (componenti connesse) a partire dai muri disegnati
  * nell'editor. Due celle adiacenti stanno nella stessa area se e solo
- * se non c'è un muro tra di loro.
+ * se non c'è un muro tra di loro. Le celle disattivate (griglie non
+ * rettangolari) non fanno parte di nessuna area.
  */
-export function computeAreas(puzzle: Pick<Puzzle, 'width' | 'height' | 'wallsRight' | 'wallsBottom'>): AreaMap {
+export function computeAreas(
+  puzzle: Pick<Puzzle, 'width' | 'height' | 'wallsRight' | 'wallsBottom'> & { disabledCells?: CellId[] },
+): AreaMap {
   const { width, height } = puzzle;
   const wallsRight = new Set(puzzle.wallsRight);
   const wallsBottom = new Set(puzzle.wallsBottom);
+  const disabled = new Set(puzzle.disabledCells ?? []);
 
   const cellArea: Record<CellId, string> = {};
   const areaCells: Record<string, CellId[]> = {};
@@ -26,7 +30,7 @@ export function computeAreas(puzzle: Pick<Puzzle, 'width' | 'height' | 'wallsRig
   for (let row = 0; row < height; row++) {
     for (let col = 0; col < width; col++) {
       const start = cellId(row, col);
-      if (visited.has(start)) continue;
+      if (visited.has(start) || disabled.has(start)) continue;
 
       const areaId = `area-${areaIds.length + 1}`;
       areaIds.push(areaId);
@@ -47,7 +51,7 @@ export function computeAreas(puzzle: Pick<Puzzle, 'width' | 'height' | 'wallsRig
         if (r - 1 >= 0) neighbors.push({ id: cellId(r - 1, c), blocked: wallsBottom.has(cellId(r - 1, c)) });
 
         for (const n of neighbors) {
-          if (!n.blocked && !visited.has(n.id)) {
+          if (!n.blocked && !visited.has(n.id) && !disabled.has(n.id)) {
             visited.add(n.id);
             stack.push(n.id);
           }

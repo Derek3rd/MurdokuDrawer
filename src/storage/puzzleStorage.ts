@@ -4,10 +4,24 @@ const LIBRARY_KEY = 'murdoku:puzzles';
 
 type Library = Record<string, Puzzle>;
 
+/** Riempie con default i campi introdotti dopo la creazione di puzzle salvati in precedenza. */
+function withDefaults(p: Partial<Puzzle>): Puzzle {
+  return {
+    customElementTypes: [],
+    areaNames: [],
+    windows: [],
+    disabledCells: [],
+    ...p,
+  } as Puzzle;
+}
+
 function readLibrary(): Library {
   try {
     const raw = localStorage.getItem(LIBRARY_KEY);
-    return raw ? (JSON.parse(raw) as Library) : {};
+    if (!raw) return {};
+    const lib = JSON.parse(raw) as Library;
+    for (const id of Object.keys(lib)) lib[id] = withDefaults(lib[id]);
+    return lib;
   } catch {
     return {};
   }

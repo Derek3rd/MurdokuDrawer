@@ -10,16 +10,16 @@ import { areaLabel, areaDisplayName, areaCustomName } from '../lib/areaLabel';
 import { describeClue } from '../lib/describeClue';
 import { downloadPuzzleAsFile } from '../storage/puzzleStorage';
 import { findVictimCell, solutionPositions, victimLetter } from '../lib/solve';
-import { ELEMENT_CATALOG, parseCellId, resolveElementType, type CellId } from '../types/puzzle';
+import { ELEMENT_CATALOG, parseCellId, resolveElementType, type CellId, type Direction } from '../types/puzzle';
 
 type Tool = 'walls' | 'elements' | 'suspects';
 
 export default function EditorPage() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { puzzle, loadPuzzleById, rename, resize, toggleWallRight, toggleWallBottom, addElement, removeElement,
-    addCustomElementType, removeCustomElementType, setAreaName, setSuspectSolution, renameSuspect, setKiller,
-    addClue, removeClue, addGlobalRule, removeGlobalRule } =
+  const { puzzle, loadPuzzleById, rename, resize, toggleWallRight, toggleWallBottom, toggleWindow,
+    toggleCellDisabled, addElement, removeElement, addCustomElementType, removeCustomElementType, setAreaName,
+    setSuspectSolution, renameSuspect, setKiller, addClue, removeClue, addGlobalRule, removeGlobalRule } =
     useEditorStore();
 
   useEffect(() => {
@@ -54,7 +54,11 @@ export default function EditorPage() {
   };
 
   const onCellClick = (c: CellId) => {
-    if (tool === 'elements') {
+    if (tool === 'walls') {
+      toggleCellDisabled(c);
+    } else if (puzzle.disabledCells.includes(c)) {
+      return; // cella disattivata: non fa parte della mappa
+    } else if (tool === 'elements') {
       const existing = elementAt(c);
       if (existing?.type === selectedElementType) {
         removeElement(existing.id);
@@ -90,6 +94,11 @@ export default function EditorPage() {
     if (tool !== 'walls') return;
     if (side === 'right') toggleWallRight(cell);
     else toggleWallBottom(cell);
+  };
+
+  const onWindowClick = ({ cellId, side }: { cellId: CellId; side: Direction }) => {
+    if (tool !== 'walls') return;
+    toggleWindow(cellId, side);
   };
 
   return (
@@ -221,6 +230,9 @@ export default function EditorPage() {
           editableWalls={tool === 'walls'}
           onEdgeClick={onEdgeClick}
           onCellClick={onCellClick}
+          windows={puzzle.windows}
+          onWindowClick={onWindowClick}
+          editableWindows={tool === 'walls'}
           cellClassName={(c) => {
             if (tool === 'suspects' && isExcludedCell(c)) return 'locked';
             if (victim.cellId === c) return 'victim';
@@ -257,7 +269,7 @@ export default function EditorPage() {
         />
         <p style={{ textAlign: 'center', fontSize: '0.85rem', color: '#666' }}>
           {tool === 'walls' &&
-            "Trascina tra le celle per disegnare i muri che delimitano le aree. Dai un nome alle aree nell'elenco qui sotto."}
+            "Trascina tra le celle per i muri, sul bordo esterno per le finestre. Clicca una cella per attivarla/disattivarla (griglie non rettangolari). Dai un nome alle aree nell'elenco qui sotto."}
           {tool === 'elements' &&
             'Scegli un oggetto sopra, poi clicca una cella per piazzarlo (clicca di nuovo lo stesso oggetto per rimuoverlo).'}
           {tool === 'suspects' &&

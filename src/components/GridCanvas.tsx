@@ -1,10 +1,11 @@
 import { useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
-import { cellId, type CellId } from '../types/puzzle';
+import { cellId, type CellId, type Direction, type WindowEdge } from '../types/puzzle';
 import { computeAreas } from '../lib/grid';
 import type { Puzzle } from '../types/puzzle';
 import './GridCanvas.css';
 
-const GAP = 10; // px, spessore della fascia cliccabile/trascinabile per i muri
+const GAP = 10; // px, spessore della fascia cliccabile/trascinabile per i muri interni
+const PERI_GAP = 14; // px, spessore della fascia cliccabile per le finestre sul perimetro
 const LONG_PRESS_MS = 450;
 const MOVE_CANCEL_PX = 10;
 const AREA_PALETTE = [
@@ -19,7 +20,7 @@ export function areaColor(areaIndex: number): string {
 type Edge = { side: 'right' | 'bottom'; cell: CellId };
 
 interface GridCanvasProps {
-  puzzle: Pick<Puzzle, 'width' | 'height' | 'wallsRight' | 'wallsBottom'>;
+  puzzle: Pick<Puzzle, 'width' | 'height' | 'wallsRight' | 'wallsBottom'> & { disabledCells?: CellId[] };
   renderCell?: (cell: CellId) => ReactNode;
   cellClassName?: (cell: CellId) => string | undefined;
   /** Click/tap breve su una cella. */
@@ -28,6 +29,10 @@ interface GridCanvasProps {
   onCellLongPress?: (cell: CellId) => void;
   onEdgeClick?: (edge: Edge) => void;
   editableWalls?: boolean;
+  /** Finestre segnate sul perimetro esterno rettangolare della griglia. */
+  windows?: WindowEdge[];
+  onWindowClick?: (edge: WindowEdge) => void;
+  editableWindows?: boolean;
 }
 
 function edgeFromElement(el: Element | null): Edge | null {
@@ -46,10 +51,15 @@ export function GridCanvas({
   onCellLongPress,
   onEdgeClick,
   editableWalls = false,
+  windows = [],
+  onWindowClick,
+  editableWindows = false,
 }: GridCanvasProps) {
   const { width, height } = puzzle;
   const areas = computeAreas(puzzle);
   const areaIndex = new Map(areas.areaIds.map((id, i) => [id, i]));
+  const disabledSet = new Set(puzzle.disabledCells ?? []);
+  const windowSet = new Set(windows.map((w) => `${w.cellId}:${w.side}`));
   const dragRef = useRef<{ active: boolean; visited: Set<string> } | null>(null);
   const pressRef = useRef<{ cell: CellId; timer: number | null; longFired: boolean; x: number; y: number } | null>(
     null,
@@ -127,50 +137,88 @@ export function GridCanvas({
     if (!press.longFired) onCellClick?.(id);
   };
 
-  const colTemplate = Array.from({ length: 2 * width - 1 }, (_, i) => (i % 2 === 0 ? '1fr' : `${GAP}px`)).join(' ');
-  const rowTemplate = Array.from({ length: 2 * height - 1 }, (_, i) => (i % 2 === 0 ? '1fr' : `${GAP}px`)).join(' ');
+  const colTemplate = [
+    `${PERI_GAP}px`,
+    ...Array.from({ length: 2 * width - 1 }, (_, i) => (i % 2 === 0 ? '1fr' : `${GAP}px`)),
+    `${PERI_GAP}px`,
+  ].join(' ');
+  const rowTemplate = [
+    `${PERI_GAP}px`,
+    ...Array.from({ length: 2 * height - 1 }, (_, i) => (i % 2 === 0 ? '1fr' : `${GAP}px`)),
+    `${PERI_GAP}px`,
+  ].join(' ');
+
+  const windowEdge = (id: CellId, side: Direction, gridRow: number, gridColumn: number) => {
+    const has = windowSet.has(`${id}:${side}`);
+    return (
+      <div
+        key={`${id}-w${side}`}
+        className={`mk-window-edge ${has ? 'mk-window' : ''} ${editableWindows ? 'mk-editable' : ''}`}
+        style={{ gridRow, gridColumn }}
+        onClick={() => onWindowClick?.({ cellId: id, side })}
+      />
+    );
+  };
 
   const cells = [];
   for (let r = 0; r < height; r++) {
     for (let c = 0; c < width; c++) {
       const id = cellId(r, c);
-      const bg = areaColor(areaIndex.get(areas.cellArea[id]) ?? 0);
+      const isDisabled = disabledSet.has(id);
+      const bg = isDisabled ? undefined : areaColor(areaIndex.get(areas.cellArea[id]) ?? 0);
       cells.push(
         <div
           key={id}
-          className={`mk-cell ${cellClassName?.(id) ?? ''} ${pressingCell === id ? 'pressing' : ''}`}
-          style={{ gridRow: 2 * r + 1, gridColumn: 2 * c + 1, background: bg }}
+          className={`mk-cell ${isDisabled ? 'mk-cell-disabled' : ''} ${cellClassName?.(id) ?? ''} ${pressingCell === id ? 'pressing' : ''}`}
+          style={{ gridRow: 2 * r + 2, gridColumn: 2 * c + 2, background: bg }}
           onPointerDown={handleCellPointerDown(id)}
           onPointerUp={handleCellPointerUp(id)}
           onContextMenu={(e) => e.preventDefault()}
         >
-          {renderCell?.(id)}
+          {!isDisabled && renderCell?.(id)}
         </div>,
       );
 
       if (c < width - 1) {
-        const hasWall = puzzle.wallsRight.includes(id);
-        cells.push(
-          <div
-            key={`${id}-r`}
-            className={`mk-edge mk-edge-v ${hasWall ? 'mk-wall' : ''} ${editableWalls ? 'mk-editable' : ''}`}
-            style={{ gridRow: 2 * r + 1, gridColumn: 2 * c + 2 }}
-            data-side="right"
-            data-cell={id}
-          />,
-        );
+        const rightId = cellId(r, c + 1);
+        if (isDisabled || disabledSet.has(rightId)) {
+          cells.push(<div key={`${id}-r`} style={{ gridRow: 2 * r + 2, gridColumn: 2 * c + 3 }} />);
+        } else {
+          const hasWall = puzzle.wallsRight.includes(id);
+          cells.push(
+            <div
+              key={`${id}-r`}
+              className={`mk-edge mk-edge-v ${hasWall ? 'mk-wall' : ''} ${editableWalls ? 'mk-editable' : ''}`}
+              style={{ gridRow: 2 * r + 2, gridColumn: 2 * c + 3 }}
+              data-side="right"
+              data-cell={id}
+            />,
+          );
+        }
       }
       if (r < height - 1) {
-        const hasWall = puzzle.wallsBottom.includes(id);
-        cells.push(
-          <div
-            key={`${id}-b`}
-            className={`mk-edge mk-edge-h ${hasWall ? 'mk-wall' : ''} ${editableWalls ? 'mk-editable' : ''}`}
-            style={{ gridRow: 2 * r + 2, gridColumn: 2 * c + 1 }}
-            data-side="bottom"
-            data-cell={id}
-          />,
-        );
+        const bottomId = cellId(r + 1, c);
+        if (isDisabled || disabledSet.has(bottomId)) {
+          cells.push(<div key={`${id}-b`} style={{ gridRow: 2 * r + 3, gridColumn: 2 * c + 2 }} />);
+        } else {
+          const hasWall = puzzle.wallsBottom.includes(id);
+          cells.push(
+            <div
+              key={`${id}-b`}
+              className={`mk-edge mk-edge-h ${hasWall ? 'mk-wall' : ''} ${editableWalls ? 'mk-editable' : ''}`}
+              style={{ gridRow: 2 * r + 3, gridColumn: 2 * c + 2 }}
+              data-side="bottom"
+              data-cell={id}
+            />,
+          );
+        }
+      }
+
+      if (!isDisabled) {
+        if (r === 0) cells.push(windowEdge(id, 'N', 1, 2 * c + 2));
+        if (r === height - 1) cells.push(windowEdge(id, 'S', 2 * height + 1, 2 * c + 2));
+        if (c === 0) cells.push(windowEdge(id, 'O', 2 * r + 2, 1));
+        if (c === width - 1) cells.push(windowEdge(id, 'E', 2 * r + 2, 2 * width + 1));
       }
     }
   }

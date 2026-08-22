@@ -62,6 +62,7 @@ export default function PlayPage() {
   // altrimenti segna/toglie un candidato per il sospettato selezionato. Le X
   // automatiche di riga/colonna sono calcolate a parte: il giocatore non può toglierle.
   const onCellTap = (c: CellId) => {
+    if (puzzle.disabledCells.includes(c)) return; // cella fuori dalla mappa
     if (markMode) {
       toggleManualMark(c);
       return;
@@ -74,6 +75,7 @@ export default function PlayPage() {
 
   // Pressione prolungata: conferma (o rimuove la conferma) la posizione definitiva.
   const onCellLongPress = (c: CellId) => {
+    if (puzzle.disabledCells.includes(c)) return; // cella fuori dalla mappa
     if (!selectedSuspectId) return;
     if (confirmed[selectedSuspectId] === c) {
       unconfirmSuspect(selectedSuspectId);
@@ -163,6 +165,7 @@ export default function PlayPage() {
 
         <GridCanvas
           puzzle={puzzle}
+          windows={puzzle.windows}
           cellClassName={(c) => {
             if (isAutoExcludedCell(c) || playState.manualMarks.includes(c)) return 'locked';
             if (victim.cellId === c) return 'victim';
