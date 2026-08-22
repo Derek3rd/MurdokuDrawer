@@ -63,14 +63,20 @@ export const usePlayStore = create<PlayStoreState>((set) => ({
       // sospettato: rimuove ogni candidato e ogni segno manuale ormai ridondante lì
       // (la stessa esclusione è già coperta dalla X automatica). Le X automatiche di
       // riga/colonna restano calcolate a parte e non sono mai salvate qui, quindi non
-      // possono essere rimosse dal giocatore.
+      // possono essere rimosse dal giocatore. Il sospettato appena confermato ha ora una
+      // posizione definitiva: i suoi eventuali candidati altrove sulla griglia non servono
+      // più e vengono rimossi.
       const { row, col } = parseCellId(cellId);
       const inRowOrCol = (cid: string) => {
         const p = parseCellId(cid);
         return p.row === row || p.col === col;
       };
-      const candidates = { ...s.playState.candidates };
-      for (const cid of Object.keys(candidates)) if (inRowOrCol(cid)) delete candidates[cid];
+      const candidates: typeof s.playState.candidates = {};
+      for (const [cid, ids] of Object.entries(s.playState.candidates)) {
+        if (inRowOrCol(cid)) continue;
+        const filtered = ids.filter((id) => id !== suspectId);
+        if (filtered.length > 0) candidates[cid] = filtered;
+      }
       const manualMarks = s.playState.manualMarks.filter((cid) => !inRowOrCol(cid));
       return applyChange(s, { ...s.playState, candidates, manualMarks, confirmed });
     }),

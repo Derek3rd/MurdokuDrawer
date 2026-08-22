@@ -57,8 +57,11 @@ export default function EditorPage() {
   };
 
   // Cella esclusa dalla riga/colonna di un qualsiasi sospettato o della vittima già piazzati:
-  // indicazione sempre visibile, indipendente da chi è selezionato nello strumento.
+  // indicazione sempre visibile, indipendente da chi è selezionato nello strumento. Le celle
+  // già non occupabili per via di un oggetto (es. un tavolo) non vengono segnate: la X
+  // automatica serve solo a segnalare celle altrimenti valide.
   const isExcludedCell = (c: CellId): boolean => {
+    if (nonOccupiableLabel(c)) return false;
     const { row, col } = parseCellId(c);
     const placedCells = [...puzzle.suspects.map((s) => s.solutionCellId), puzzle.victim.solutionCellId];
     return placedCells.some((cid) => {
