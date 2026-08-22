@@ -4,8 +4,9 @@ import { GridCanvas } from '../components/GridCanvas';
 import ClueForm from '../components/ClueForm';
 import CustomElementForm from '../components/CustomElementForm';
 import { useEditorStore } from '../store/useEditorStore';
+import { areaColor } from '../components/GridCanvas';
 import { areaCentroidCell, computeAreas } from '../lib/grid';
-import { areaDisplayName, areaCustomName } from '../lib/areaLabel';
+import { areaLabel, areaDisplayName, areaCustomName } from '../lib/areaLabel';
 import { describeClue } from '../lib/describeClue';
 import { downloadPuzzleAsFile } from '../storage/puzzleStorage';
 import { findVictimCell, solutionPositions, victimLetter } from '../lib/solve';
@@ -53,12 +54,7 @@ export default function EditorPage() {
   };
 
   const onCellClick = (c: CellId) => {
-    if (tool === 'walls') {
-      const areaId = areas.cellArea[c];
-      const current = areaCustomName(areaId, puzzle.areaNames, areas) ?? '';
-      const name = prompt("Nome per quest'area (lascia vuoto per rimuovere il nome):", current);
-      if (name !== null) setAreaName(c, name);
-    } else if (tool === 'elements') {
+    if (tool === 'elements') {
       const existing = elementAt(c);
       if (existing?.type === selectedElementType) {
         removeElement(existing.id);
@@ -261,7 +257,7 @@ export default function EditorPage() {
         />
         <p style={{ textAlign: 'center', fontSize: '0.85rem', color: '#666' }}>
           {tool === 'walls' &&
-            'Trascina tra le celle per disegnare i muri che delimitano le aree. Clicca una cella per darle un nome.'}
+            "Trascina tra le celle per disegnare i muri che delimitano le aree. Dai un nome alle aree nell'elenco qui sotto."}
           {tool === 'elements' &&
             'Scegli un oggetto sopra, poi clicca una cella per piazzarlo (clicca di nuovo lo stesso oggetto per rimuoverlo).'}
           {tool === 'suspects' &&
@@ -302,6 +298,38 @@ export default function EditorPage() {
             </li>
           ))}
         </ul>
+      </section>
+
+      <section className="mk-card">
+        <h2>Aree</h2>
+        {areas.areaIds.length === 0 ? (
+          <p>Nessuna area: disegna dei muri per crearne.</p>
+        ) : (
+          <ul className="mk-list">
+            {areas.areaIds.map((areaId, i) => {
+              const anchor = areaCentroidCell(areas.areaCells[areaId]);
+              const currentName = areaCustomName(areaId, puzzle.areaNames, areas) ?? '';
+              return (
+                <li key={areaId}>
+                  <span className="mk-row" style={{ alignItems: 'center' }}>
+                    <span className="mk-badge" style={{ background: areaColor(i) }}>
+                      &nbsp;
+                    </span>
+                    <input
+                      value={currentName}
+                      placeholder={areaLabel(areaId)}
+                      onChange={(e) => setAreaName(anchor, e.target.value)}
+                      style={{ width: '12rem' }}
+                    />
+                    <span style={{ fontSize: '0.8rem', color: '#666' }}>
+                      {areas.areaCells[areaId].length} celle
+                    </span>
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+        )}
       </section>
 
       <section className="mk-card">

@@ -195,7 +195,11 @@ export default function PlayPage() {
                   <div className="mk-candidate-grid">
                     {candidateIds.map((sid) => {
                       const s = puzzle.suspects.find((x) => x.id === sid);
-                      return s ? <span key={sid} className="mk-candidate-dot" style={{ background: s.color }} /> : null;
+                      return s ? (
+                        <span key={sid} className="mk-candidate-letter" style={{ color: s.color }}>
+                          {s.name[0]?.toUpperCase()}
+                        </span>
+                      ) : null;
                     })}
                   </div>
                 )}
