@@ -4,21 +4,25 @@ import { GridCanvas } from '../components/GridCanvas';
 import ClueForm from '../components/ClueForm';
 import CustomElementForm from '../components/CustomElementForm';
 import { useEditorStore } from '../store/useEditorStore';
+import { areaColor } from '../components/GridCanvas';
 import { areaCentroidCell, computeAreas } from '../lib/grid';
-import { areaDisplayName, areaCustomName } from '../lib/areaLabel';
+import { areaLabel, areaDisplayName, areaCustomName } from '../lib/areaLabel';
 import { describeClue } from '../lib/describeClue';
 import { downloadPuzzleAsFile } from '../storage/puzzleStorage';
-import { findVictimCell, solutionPositions, victimLetter } from '../lib/solve';
-import { ELEMENT_CATALOG, parseCellId, resolveElementType, type CellId } from '../types/puzzle';
+import { ELEMENT_CATALOG, parseCellId, resolveElementType, type CellId, type Direction } from '../types/puzzle';
 
 type Tool = 'walls' | 'elements' | 'suspects';
+
+/** Chiave riservata usata per selezionare/piazzare la vittima nello strumento "Sospettati". */
+const VICTIM_ID = 'victim';
 
 export default function EditorPage() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { puzzle, loadPuzzleById, rename, resize, toggleWallRight, toggleWallBottom, addElement, removeElement,
-    addCustomElementType, removeCustomElementType, setAreaName, setSuspectSolution, renameSuspect, setKiller,
-    addClue, removeClue, addGlobalRule, removeGlobalRule } =
+  const { puzzle, loadPuzzleById, rename, resize, toggleWallRight, toggleWallBottom, toggleWindow,
+    toggleCellDisabled, addElement, removeElement, addCustomElementType, removeCustomElementType, setAreaName,
+    setSuspectSolution, renameSuspect, setVictimSolution, setKiller, addClue, removeClue, clearCluesForSuspect,
+    addGlobalRule, removeGlobalRule } =
     useEditorStore();
 
   useEffect(() => {
@@ -33,31 +37,42 @@ export default function EditorPage() {
   const [customRuleText, setCustomRuleText] = useState('');
 
   const areas = useMemo(() => computeAreas(puzzle), [puzzle]);
-  const positions = useMemo(() => solutionPositions(puzzle), [puzzle]);
-  const victim = useMemo(() => findVictimCell(puzzle, positions, areas), [puzzle, positions, areas]);
 
   if (!puzzle || puzzle.id !== id) return <p>Caricamento...</p>;
 
   const elementAt = (c: CellId) => puzzle.elements.find((e) => e.cellId === c);
   const suspectAt = (c: CellId) => puzzle.suspects.find((s) => s.solutionCellId === c);
+  // Occupante di una cella tra sospettati e vittima (entrambi soggetti allo stesso vincolo
+  // di posizione unica e allo stesso blocco riga/colonna).
+  const occupantAt = (c: CellId): { id: string; label: string } | undefined => {
+    const sus = suspectAt(c);
+    if (sus) return { id: sus.id, label: sus.name };
+    if (puzzle.victim.solutionCellId === c) return { id: VICTIM_ID, label: 'V' };
+    return undefined;
+  };
+  const nonOccupiableLabel = (c: CellId): string | undefined => {
+    const el = elementAt(c);
+    const entry = el ? resolveElementType(el.type, puzzle.customElementTypes) : undefined;
+    return entry && !entry.occupiable ? entry.label : undefined;
+  };
 
-  // Cella esclusa dalla riga/colonna di un qualsiasi sospettato già piazzato: indicazione
-  // sempre visibile, indipendente da quale sospettato è selezionato nello strumento.
+  // Cella esclusa dalla riga/colonna di un qualsiasi sospettato o della vittima già piazzati:
+  // indicazione sempre visibile, indipendente da chi è selezionato nello strumento.
   const isExcludedCell = (c: CellId): boolean => {
     const { row, col } = parseCellId(c);
-    return puzzle.suspects.some((s) => {
-      if (!s.solutionCellId || s.solutionCellId === c) return false;
-      const p = parseCellId(s.solutionCellId);
+    const placedCells = [...puzzle.suspects.map((s) => s.solutionCellId), puzzle.victim.solutionCellId];
+    return placedCells.some((cid) => {
+      if (!cid || cid === c) return false;
+      const p = parseCellId(cid);
       return p.row === row || p.col === col;
     });
   };
 
   const onCellClick = (c: CellId) => {
     if (tool === 'walls') {
-      const areaId = areas.cellArea[c];
-      const current = areaCustomName(areaId, puzzle.areaNames, areas) ?? '';
-      const name = prompt("Nome per quest'area (lascia vuoto per rimuovere il nome):", current);
-      if (name !== null) setAreaName(c, name);
+      toggleCellDisabled(c);
+    } else if (puzzle.disabledCells.includes(c)) {
+      return; // cella disattivata: non fa parte della mappa
     } else if (tool === 'elements') {
       const existing = elementAt(c);
       if (existing?.type === selectedElementType) {
@@ -70,15 +85,18 @@ export default function EditorPage() {
       }
     } else if (tool === 'suspects') {
       if (!selectedSuspectId) return;
-      const existing = suspectAt(c);
+      const existing = occupantAt(c);
       if (existing && existing.id !== selectedSuspectId) {
-        alert(`Cella già occupata da ${existing.name}`);
+        alert(`Cella già occupata da ${existing.label}`);
         return;
       }
-      const el = elementAt(c);
-      const entry = el ? resolveElementType(el.type, puzzle.customElementTypes) : undefined;
-      if (entry && !entry.occupiable) {
-        alert(`Un sospettato non può stare sopra "${entry.label}".`);
+      const blockedBy = nonOccupiableLabel(c);
+      if (blockedBy) {
+        alert(`Un sospettato non può stare sopra "${blockedBy}".`);
+        return;
+      }
+      if (selectedSuspectId === VICTIM_ID) {
+        setVictimSolution(puzzle.victim.solutionCellId === c ? null : c); // click di nuovo per rimuovere
         return;
       }
       const current = puzzle.suspects.find((s) => s.id === selectedSuspectId);
@@ -96,6 +114,11 @@ export default function EditorPage() {
     else toggleWallBottom(cell);
   };
 
+  const onWindowClick = ({ cellId, side }: { cellId: CellId; side: Direction }) => {
+    if (tool !== 'walls') return;
+    toggleWindow(cellId, side);
+  };
+
   return (
     <div>
       <section className="mk-card">
@@ -109,7 +132,7 @@ export default function EditorPage() {
             <input
               type="number"
               min={2}
-              max={20}
+              max={16}
               value={puzzle.width}
               onChange={(e) => resize(Number(e.target.value), puzzle.height)}
             />
@@ -119,7 +142,7 @@ export default function EditorPage() {
             <input
               type="number"
               min={2}
-              max={20}
+              max={16}
               value={puzzle.height}
               onChange={(e) => resize(puzzle.width, Number(e.target.value))}
             />
@@ -160,6 +183,13 @@ export default function EditorPage() {
                 {s.name}
               </span>
             ))}
+            <span
+              className={`mk-suspect-pill ${selectedSuspectId === VICTIM_ID ? 'active' : ''}`}
+              style={{ background: puzzle.victim.color }}
+              onClick={() => setSelectedSuspectId(VICTIM_ID)}
+            >
+              V (vittima)
+            </span>
           </div>
         )}
 
@@ -225,15 +255,19 @@ export default function EditorPage() {
           editableWalls={tool === 'walls'}
           onEdgeClick={onEdgeClick}
           onCellClick={onCellClick}
+          windows={puzzle.windows}
+          onWindowClick={onWindowClick}
+          editableWindows={tool === 'walls'}
           cellClassName={(c) => {
             if (tool === 'suspects' && isExcludedCell(c)) return 'locked';
-            if (victim.cellId === c) return 'victim';
+            if (puzzle.victim.solutionCellId === c) return 'victim';
             return undefined;
           }}
           renderCell={(c) => {
             const el = elementAt(c);
             const elEntry = el ? resolveElementType(el.type, puzzle.customElementTypes) : undefined;
             const sus = suspectAt(c);
+            const isVictimHere = puzzle.victim.solutionCellId === c;
             const areaId = areas.cellArea[c];
             const areaName = areaCustomName(areaId, puzzle.areaNames, areas);
             const name = areaName && areaCentroidCell(areas.areaCells[areaId]) === c ? areaName : undefined;
@@ -250,9 +284,9 @@ export default function EditorPage() {
                     {sus.name[0]?.toUpperCase()}
                   </span>
                 )}
-                {victim.cellId === c && !sus && (
+                {isVictimHere && !sus && (
                   <span className="mk-victim-badge" title="Vittima">
-                    {victimLetter(puzzle)}
+                    V
                   </span>
                 )}
               </>
@@ -261,19 +295,17 @@ export default function EditorPage() {
         />
         <p style={{ textAlign: 'center', fontSize: '0.85rem', color: '#666' }}>
           {tool === 'walls' &&
-            'Trascina tra le celle per disegnare i muri che delimitano le aree. Clicca una cella per darle un nome.'}
+            "Trascina tra le celle per i muri, sul bordo esterno per le finestre. Clicca una cella per attivarla/disattivarla (griglie non rettangolari). Dai un nome alle aree nell'elenco qui sotto."}
           {tool === 'elements' &&
             'Scegli un oggetto sopra, poi clicca una cella per piazzarlo (clicca di nuovo lo stesso oggetto per rimuoverlo).'}
           {tool === 'suspects' &&
-            'Seleziona un sospettato sopra, poi clicca la cella soluzione. Le celle in grigio sono bloccate da riga/colonna già occupate.'}
+            'Seleziona un sospettato (o la vittima V) sopra, poi clicca la cella soluzione. Le celle in grigio sono bloccate da riga/colonna già occupate.'}
         </p>
-        {victim.cellId ? (
-          <p className="mk-status-ok">
-            💀 Vittima ({victimLetter(puzzle)}) calcolata in cella {victim.cellId}
-          </p>
-        ) : (
-          <p className="mk-status-unknown">Vittima non ancora determinabile: {victim.reason}</p>
-        )}
+        <p className={puzzle.victim.solutionCellId ? 'mk-status-ok' : 'mk-status-unknown'}>
+          {puzzle.victim.solutionCellId
+            ? `💀 Vittima (V) piazzata in cella ${puzzle.victim.solutionCellId}`
+            : 'Vittima non ancora piazzata: selezionala nello strumento "Sospettati" e scegli una cella.'}
+        </p>
       </section>
 
       <section className="mk-card">
@@ -301,18 +333,61 @@ export default function EditorPage() {
               </label>
             </li>
           ))}
+          <li>
+            <span className="mk-row" style={{ alignItems: 'center' }}>
+              <span className="mk-badge" style={{ background: puzzle.victim.color }}>
+                &nbsp;
+              </span>
+              <strong style={{ width: '10rem', display: 'inline-block' }}>V (vittima)</strong>
+              <span style={{ fontSize: '0.8rem', color: '#666' }}>
+                {puzzle.victim.solutionCellId ? `cella ${puzzle.victim.solutionCellId}` : 'nessuna cella'}
+              </span>
+            </span>
+          </li>
         </ul>
       </section>
 
       <section className="mk-card">
+        <h2>Aree</h2>
+        {areas.areaIds.length === 0 ? (
+          <p>Nessuna area: disegna dei muri per crearne.</p>
+        ) : (
+          <ul className="mk-list">
+            {areas.areaIds.map((areaId, i) => {
+              const anchor = areaCentroidCell(areas.areaCells[areaId]);
+              const currentName = areaCustomName(areaId, puzzle.areaNames, areas) ?? '';
+              return (
+                <li key={areaId}>
+                  <span className="mk-row" style={{ alignItems: 'center' }}>
+                    <span className="mk-badge" style={{ background: areaColor(i) }}>
+                      &nbsp;
+                    </span>
+                    <input
+                      value={currentName}
+                      placeholder={areaLabel(areaId)}
+                      onChange={(e) => setAreaName(anchor, e.target.value)}
+                      style={{ width: '12rem' }}
+                    />
+                    <span style={{ fontSize: '0.8rem', color: '#666' }}>
+                      {areas.areaCells[areaId].length} celle
+                    </span>
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </section>
+
+      <section className="mk-card">
         <h2>Indizi</h2>
-        {puzzle.suspects.map((s) => (
+        {puzzle.suspects.map((s) => {
+          const suspectClues = puzzle.clues.filter((c) => c.suspectId === s.id);
+          return (
           <div key={s.id} style={{ marginBottom: '0.75rem' }}>
             <strong style={{ color: s.color }}>{s.name}</strong>
             <ul className="mk-clue-list">
-              {puzzle.clues
-                .filter((c) => c.suspectId === s.id)
-                .map((c) => (
+              {suspectClues.map((c) => (
                   <li key={c.id} className="mk-clue-item">
                     <span>{describeClue(c, puzzle, areas)}</span>
                     <button className="mk-btn danger" onClick={() => removeClue(c.id)}>
@@ -321,6 +396,16 @@ export default function EditorPage() {
                   </li>
                 ))}
             </ul>
+            {suspectClues.length > 0 && (
+              <button
+                className="mk-btn danger"
+                onClick={() => {
+                  if (confirm(`Svuotare tutti gli indizi di ${s.name}?`)) clearCluesForSuspect(s.id);
+                }}
+              >
+                Svuota tutti gli indizi
+              </button>
+            )}
             {clueEditorFor === s.id ? (
               <ClueForm
                 puzzle={puzzle}
@@ -338,7 +423,8 @@ export default function EditorPage() {
               </button>
             )}
           </div>
-        ))}
+          );
+        })}
       </section>
 
       <section className="mk-card">

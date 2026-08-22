@@ -1,6 +1,6 @@
 import type { CellId, Clue, GlobalRule, Puzzle } from '../types/puzzle';
-import { parseCellId, suspectLetter } from '../types/puzzle';
-import { computeAreas, isAdjacent, isAdjacentInDirection, isInDirection, type AreaMap } from './grid';
+import { parseCellId } from '../types/puzzle';
+import { isAdjacent, isAdjacentInDirection, isInDirection, type AreaMap } from './grid';
 
 export type Positions = Record<string, CellId | null>;
 
@@ -9,38 +9,6 @@ export function solutionPositions(puzzle: Puzzle): Positions {
   const pos: Positions = {};
   for (const s of puzzle.suspects) pos[s.id] = s.solutionCellId;
   return pos;
-}
-
-/** Lettera della vittima: quella subito dopo l'ultimo sospettato (es. 4 sospettati A-D -> vittima E). */
-export function victimLetter(puzzle: Puzzle): string {
-  return suspectLetter(puzzle.suspects.length);
-}
-
-/**
- * Trova la cella della vittima: l'unica cella libera (senza sospettato)
- * nell'area del killer. Ritorna null se il killer non è definito, se la
- * sua area non ha celle libere, o se ne ha più di una (area non ancora
- * coerente con la regola "un'unica cella libera").
- */
-export function findVictimCell(
-  puzzle: Puzzle,
-  positions: Positions,
-  areas: AreaMap = computeAreas(puzzle),
-): { cellId: CellId | null; reason?: string } {
-  if (!puzzle.killerId) return { cellId: null, reason: 'Killer non impostato' };
-  const killerCell = positions[puzzle.killerId];
-  if (!killerCell) return { cellId: null, reason: 'Posizione del killer non definita' };
-
-  const areaId = areas.cellArea[killerCell];
-  const cellsInArea = areas.areaCells[areaId] ?? [];
-  const occupied = new Set(Object.values(positions).filter((c): c is CellId => !!c));
-  const free = cellsInArea.filter((c) => !occupied.has(c));
-
-  if (free.length === 0) return { cellId: null, reason: "Nessuna cella libera nell'area del killer" };
-  if (free.length > 1) {
-    return { cellId: null, reason: `${free.length} celle libere nell'area del killer (deve essercene una sola)` };
-  }
-  return { cellId: free[0] };
 }
 
 function resolveTargetCell(

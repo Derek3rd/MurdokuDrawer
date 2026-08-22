@@ -6,6 +6,7 @@ import {
   DEFAULT_SUSPECT_COLORS,
   type Clue,
   type CustomElementType,
+  type Direction,
   type DistributiveOmit,
   type GlobalRule,
   type Puzzle,
@@ -23,6 +24,8 @@ interface EditorState {
   resize: (width: number, height: number) => void;
   toggleWallRight: (cellId: string) => void;
   toggleWallBottom: (cellId: string) => void;
+  toggleWindow: (cellId: string, side: Direction) => void;
+  toggleCellDisabled: (cellId: string) => void;
   addElement: (element: { type: string; cellId: string }) => void;
   removeElement: (id: string) => void;
   addCustomElementType: (entry: Omit<CustomElementType, 'id'>) => string;
@@ -30,10 +33,12 @@ interface EditorState {
   setAreaName: (cellId: string, name: string) => void;
   setSuspectSolution: (suspectId: string, cellId: string | null) => void;
   renameSuspect: (suspectId: string, name: string) => void;
+  setVictimSolution: (cellId: string | null) => void;
   setKiller: (suspectId: string | null) => void;
   addClue: (clue: DistributiveOmit<Clue, 'id'>) => void;
   updateClue: (id: string, patch: Partial<Clue>) => void;
   removeClue: (id: string) => void;
+  clearCluesForSuspect: (suspectId: string) => void;
   addGlobalRule: (rule: DistributiveOmit<GlobalRule, 'id'>) => void;
   removeGlobalRule: (id: string) => void;
 }
@@ -87,9 +92,15 @@ export const useEditorStore = create<EditorState>((set) => ({
           wallsBottom: s.puzzle.wallsBottom.filter(inBounds),
           elements: s.puzzle.elements.filter((e) => inBounds(e.cellId)),
           areaNames: s.puzzle.areaNames.filter((a) => inBounds(a.cellId)),
+          windows: s.puzzle.windows.filter((w) => inBounds(w.cellId)),
+          disabledCells: s.puzzle.disabledCells.filter(inBounds),
           suspects: suspects.map((sp) =>
             sp.solutionCellId && !inBounds(sp.solutionCellId) ? { ...sp, solutionCellId: null } : sp,
           ),
+          victim:
+            s.puzzle.victim.solutionCellId && !inBounds(s.puzzle.victim.solutionCellId)
+              ? { ...s.puzzle.victim, solutionCellId: null }
+              : s.puzzle.victim,
         }),
       };
     }),
@@ -114,6 +125,37 @@ export const useEditorStore = create<EditorState>((set) => ({
           wallsBottom: has ? s.puzzle.wallsBottom.filter((c) => c !== cellId) : [...s.puzzle.wallsBottom, cellId],
         }),
       };
+    }),
+
+  toggleWindow: (cellId, side) =>
+    set((s) => {
+      const key = (w: { cellId: string; side: Direction }) => w.cellId === cellId && w.side === side;
+      const has = s.puzzle.windows.some(key);
+      return {
+        puzzle: persist({
+          ...s.puzzle,
+          windows: has ? s.puzzle.windows.filter((w) => !key(w)) : [...s.puzzle.windows, { cellId, side }],
+        }),
+      };
+    }),
+
+  toggleCellDisabled: (cellId) =>
+    set((s) => {
+      const has = s.puzzle.disabledCells.includes(cellId);
+      const disabledCells = has
+        ? s.puzzle.disabledCells.filter((c) => c !== cellId)
+        : [...s.puzzle.disabledCells, cellId];
+      // Disattivando una cella, rimuove eventuale oggetto piazzato e la libera se era la
+      // soluzione di un sospettato (i relativi indizi restano, il designer li aggiorna a mano).
+      const elements = has ? s.puzzle.elements : s.puzzle.elements.filter((e) => e.cellId !== cellId);
+      const suspects = has
+        ? s.puzzle.suspects
+        : s.puzzle.suspects.map((sp) => (sp.solutionCellId === cellId ? { ...sp, solutionCellId: null } : sp));
+      const victim =
+        !has && s.puzzle.victim.solutionCellId === cellId
+          ? { ...s.puzzle.victim, solutionCellId: null }
+          : s.puzzle.victim;
+      return { puzzle: persist({ ...s.puzzle, disabledCells, elements, suspects, victim }) };
     }),
 
   addElement: (element) =>
@@ -188,6 +230,11 @@ export const useEditorStore = create<EditorState>((set) => ({
       }),
     })),
 
+  setVictimSolution: (cellId) =>
+    set((s) => ({
+      puzzle: persist({ ...s.puzzle, victim: { ...s.puzzle.victim, solutionCellId: cellId } }),
+    })),
+
   setKiller: (suspectId) => set((s) => ({ puzzle: persist({ ...s.puzzle, killerId: suspectId }) })),
 
   addClue: (clue) =>
@@ -205,6 +252,11 @@ export const useEditorStore = create<EditorState>((set) => ({
 
   removeClue: (id) =>
     set((s) => ({ puzzle: persist({ ...s.puzzle, clues: s.puzzle.clues.filter((c) => c.id !== id) }) })),
+
+  clearCluesForSuspect: (suspectId) =>
+    set((s) => ({
+      puzzle: persist({ ...s.puzzle, clues: s.puzzle.clues.filter((c) => c.suspectId !== suspectId) }),
+    })),
 
   addGlobalRule: (rule) =>
     set((s) => ({

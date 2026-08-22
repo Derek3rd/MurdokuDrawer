@@ -97,12 +97,28 @@ export interface AreaName {
   name: string;
 }
 
+/** Finestra su un lato del perimetro esterno della griglia (bordo rettangolare). */
+export interface WindowEdge {
+  cellId: CellId;
+  side: Direction;
+}
+
 export interface Suspect {
   id: string;
   name: string;
   /** Colore usato per evidenziare il sospettato in griglia */
   color: string;
   /** Cella soluzione definitiva assegnata dal designer nell'editor */
+  solutionCellId: CellId | null;
+}
+
+/**
+ * La vittima: gestita come un sospettato (piazzata dal designer, soggetta allo stesso
+ * vincolo una-per-riga/colonna, giocabile con lo stesso meccanismo tap/pressione lunga),
+ * ma senza indizi propri e sempre indicata con la lettera "V".
+ */
+export interface Victim {
+  color: string;
   solutionCellId: CellId | null;
 }
 
@@ -185,7 +201,11 @@ export interface Puzzle {
   elements: MapElement[];
   customElementTypes: CustomElementType[];
   areaNames: AreaName[];
+  windows: WindowEdge[];
+  /** Celle "buco": non fanno parte della mappa, per griglie non rettangolari */
+  disabledCells: CellId[];
   suspects: Suspect[];
+  victim: Victim;
   killerId: string | null;
   clues: Clue[];
   globalRules: GlobalRule[];
@@ -224,7 +244,10 @@ export function createEmptyPuzzle(width: number, height: number): Puzzle {
     elements: [],
     customElementTypes: [],
     areaNames: [],
+    windows: [],
+    disabledCells: [],
     suspects,
+    victim: { color: '#1a1a1a', solutionCellId: null },
     killerId: null,
     clues: [],
     globalRules: [],
