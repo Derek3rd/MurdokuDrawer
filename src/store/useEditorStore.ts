@@ -145,8 +145,10 @@ export const useEditorStore = create<EditorState>((set) => ({
       const disabledCells = has
         ? s.puzzle.disabledCells.filter((c) => c !== cellId)
         : [...s.puzzle.disabledCells, cellId];
-      // Disattivando una cella, rimuove eventuale oggetto piazzato e la libera se era la
-      // soluzione di un sospettato (i relativi indizi restano, il designer li aggiorna a mano).
+      // Disattivando una cella, rimuove eventuale oggetto piazzato, la libera se era la
+      // soluzione di un sospettato o della vittima (i relativi indizi restano, il designer
+      // li aggiorna a mano), e rimuove eventuali finestre segnate su di essa (non fa più
+      // parte della mappa).
       const elements = has ? s.puzzle.elements : s.puzzle.elements.filter((e) => e.cellId !== cellId);
       const suspects = has
         ? s.puzzle.suspects
@@ -155,7 +157,8 @@ export const useEditorStore = create<EditorState>((set) => ({
         !has && s.puzzle.victim.solutionCellId === cellId
           ? { ...s.puzzle.victim, solutionCellId: null }
           : s.puzzle.victim;
-      return { puzzle: persist({ ...s.puzzle, disabledCells, elements, suspects, victim }) };
+      const windows = has ? s.puzzle.windows : s.puzzle.windows.filter((w) => w.cellId !== cellId);
+      return { puzzle: persist({ ...s.puzzle, disabledCells, elements, suspects, victim, windows }) };
     }),
 
   addElement: (element) =>

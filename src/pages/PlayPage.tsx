@@ -11,6 +11,16 @@ import { parseCellId, resolveElementType, type CellId, type Puzzle } from '../ty
 /** Chiave riservata usata per la vittima nelle mappe confirmed/candidates, come un sospettato in più. */
 const VICTIM_ID = 'victim';
 
+function hexToRgba(hex: string, alpha: number): string {
+  const clean = hex.replace('#', '');
+  const full = clean.length === 3 ? clean.split('').map((ch) => ch + ch).join('') : clean;
+  const value = parseInt(full, 16);
+  const r = (value >> 16) & 255;
+  const g = (value >> 8) & 255;
+  const b = value & 255;
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
 export default function PlayPage() {
   const { id } = useParams();
   const [puzzle, setPuzzle] = useState<Puzzle | null>(null);
@@ -48,9 +58,19 @@ export default function PlayPage() {
     });
   };
 
+  const isOccupiable = (c: CellId): boolean => {
+    const el = puzzle.elements.find((e) => e.cellId === c);
+    if (!el) return true;
+    const entry = resolveElementType(el.type, puzzle.customElementTypes);
+    return !entry || entry.occupiable;
+  };
+
   // Cella esclusa da un qualsiasi sospettato già confermato (stessa riga o colonna):
-  // indicazione sempre visibile, indipendente da quale sospettato è selezionato.
+  // indicazione sempre visibile, indipendente da quale sospettato è selezionato. Le celle
+  // già non occupabili per via di un oggetto non vengono segnate: la X automatica serve
+  // solo a segnalare celle altrimenti valide.
   const isAutoExcludedCell = (c: CellId): boolean => {
+    if (!isOccupiable(c)) return false;
     const { row, col } = parseCellId(c);
     return Object.values(confirmed).some((cid) => {
       if (cid === c) return false;
@@ -179,6 +199,16 @@ export default function PlayPage() {
           cellClassName={(c) => {
             if (isAutoExcludedCell(c) || playState.manualMarks.includes(c)) return 'locked';
             return undefined;
+          }}
+          cellStyle={(c) => {
+            if (!selectedSuspectId) return undefined;
+            if (!(playState.candidates[c] ?? []).includes(selectedSuspectId)) return undefined;
+            const color =
+              selectedSuspectId === VICTIM_ID
+                ? puzzle.victim.color
+                : puzzle.suspects.find((s) => s.id === selectedSuspectId)?.color;
+            if (!color) return undefined;
+            return { boxShadow: `inset 0 0 0 999px ${hexToRgba(color, 0.3)}` };
           }}
           onCellClick={onCellTap}
           onCellLongPress={onCellLongPress}

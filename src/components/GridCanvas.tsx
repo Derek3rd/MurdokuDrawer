@@ -1,4 +1,4 @@
-import { useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
+import { useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
 import { cellId, type CellId, type Direction, type WindowEdge } from '../types/puzzle';
 import { computeAreas } from '../lib/grid';
 import type { Puzzle } from '../types/puzzle';
@@ -23,6 +23,8 @@ interface GridCanvasProps {
   puzzle: Pick<Puzzle, 'width' | 'height' | 'wallsRight' | 'wallsBottom'> & { disabledCells?: CellId[] };
   renderCell?: (cell: CellId) => ReactNode;
   cellClassName?: (cell: CellId) => string | undefined;
+  /** Stile extra applicato alla cella (es. tinta di evidenziazione), oltre al colore d'area. */
+  cellStyle?: (cell: CellId) => CSSProperties | undefined;
   /** Click/tap breve su una cella. */
   onCellClick?: (cell: CellId) => void;
   /** Pressione prolungata (long-press) su una cella. Se assente, le celle si comportano come un click semplice. */
@@ -47,6 +49,7 @@ export function GridCanvas({
   puzzle,
   renderCell,
   cellClassName,
+  cellStyle,
   onCellClick,
   onCellLongPress,
   onEdgeClick,
@@ -170,7 +173,7 @@ export function GridCanvas({
         <div
           key={id}
           className={`mk-cell ${isDisabled ? 'mk-cell-disabled' : ''} ${cellClassName?.(id) ?? ''} ${pressingCell === id ? 'pressing' : ''}`}
-          style={{ gridRow: 2 * r + 2, gridColumn: 2 * c + 2, background: bg }}
+          style={{ gridRow: 2 * r + 2, gridColumn: 2 * c + 2, background: bg, ...(isDisabled ? undefined : cellStyle?.(id)) }}
           onPointerDown={handleCellPointerDown(id)}
           onPointerUp={handleCellPointerUp(id)}
           onContextMenu={(e) => e.preventDefault()}
@@ -181,8 +184,15 @@ export function GridCanvas({
 
       if (c < width - 1) {
         const rightId = cellId(r, c + 1);
-        if (isDisabled || disabledSet.has(rightId)) {
+        const rightDisabled = disabledSet.has(rightId);
+        if (isDisabled && rightDisabled) {
           cells.push(<div key={`${id}-r`} style={{ gridRow: 2 * r + 2, gridColumn: 2 * c + 3 }} />);
+        } else if (isDisabled !== rightDisabled) {
+          // Una delle due celle è disattivata: questo bordo interno diventa un bordo esterno
+          // della mappa irregolare, con lo stesso controllo finestra del perimetro rettangolare.
+          const activeId = isDisabled ? rightId : id;
+          const side: Direction = isDisabled ? 'O' : 'E';
+          cells.push(windowEdge(activeId, side, 2 * r + 2, 2 * c + 3));
         } else {
           const hasWall = puzzle.wallsRight.includes(id);
           cells.push(
@@ -198,8 +208,13 @@ export function GridCanvas({
       }
       if (r < height - 1) {
         const bottomId = cellId(r + 1, c);
-        if (isDisabled || disabledSet.has(bottomId)) {
+        const bottomDisabled = disabledSet.has(bottomId);
+        if (isDisabled && bottomDisabled) {
           cells.push(<div key={`${id}-b`} style={{ gridRow: 2 * r + 3, gridColumn: 2 * c + 2 }} />);
+        } else if (isDisabled !== bottomDisabled) {
+          const activeId = isDisabled ? bottomId : id;
+          const side: Direction = isDisabled ? 'N' : 'S';
+          cells.push(windowEdge(activeId, side, 2 * r + 3, 2 * c + 2));
         } else {
           const hasWall = puzzle.wallsBottom.includes(id);
           cells.push(
