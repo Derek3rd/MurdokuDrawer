@@ -6,8 +6,10 @@ import { loadPuzzle } from '../storage/puzzleStorage';
 import { areaCentroidCell, computeAreas } from '../lib/grid';
 import { describeClue } from '../lib/describeClue';
 import { areaCustomName, areaDisplayName } from '../lib/areaLabel';
-import { findVictimCell, victimLetter, type Positions } from '../lib/solve';
 import { parseCellId, resolveElementType, type CellId, type Puzzle } from '../types/puzzle';
+
+/** Chiave riservata usata per la vittima nelle mappe confirmed/candidates, come un sospettato in più. */
+const VICTIM_ID = 'victim';
 
 export default function PlayPage() {
   const { id } = useParams();
@@ -97,16 +99,17 @@ export default function PlayPage() {
   };
 
   const checkSolution = () => {
-    const allConfirmed = puzzle.suspects.every((s) => confirmed[s.id]);
+    const allConfirmed = puzzle.suspects.every((s) => confirmed[s.id]) && !!confirmed[VICTIM_ID];
     if (!allConfirmed) {
-      alert('Conferma la posizione di tutti i sospettati prima di verificare.');
+      alert('Conferma la posizione di tutti i sospettati e della vittima prima di verificare.');
       return;
     }
-    const ok = puzzle.suspects.every((s) => confirmed[s.id] === s.solutionCellId);
+    const ok =
+      puzzle.suspects.every((s) => confirmed[s.id] === s.solutionCellId) &&
+      confirmed[VICTIM_ID] === puzzle.victim.solutionCellId;
     setResult(ok ? 'correct' : 'incorrect');
   };
 
-  const victim = result === 'correct' ? findVictimCell(puzzle, confirmed as Positions, areas) : { cellId: null };
   const killer = puzzle.suspects.find((s) => s.id === puzzle.killerId);
 
   return (
@@ -131,13 +134,20 @@ export default function PlayPage() {
               {confirmed[s.id] ? ' ✓' : ''}
             </span>
           ))}
+          <span
+            className={`mk-suspect-pill ${selectedSuspectId === VICTIM_ID ? 'active' : ''}`}
+            style={{ background: puzzle.victim.color, opacity: confirmed[VICTIM_ID] ? 1 : 0.85 }}
+            onClick={() => setSelectedSuspectId(VICTIM_ID)}
+          >
+            V{confirmed[VICTIM_ID] ? ' ✓' : ''}
+          </span>
         </div>
 
         <p style={{ fontSize: '0.85rem', color: '#666' }}>
-          Seleziona un sospettato, poi tocca una cella per segnare un candidato (●), tieni premuto per confermarne
-          la posizione definitiva. Con "✕ Segna cella" attivo, il tap segna invece una cella come non occupabile
-          da nessuno: le X grigie (automatiche o manuali) hanno lo stesso aspetto, ma solo quelle manuali si
-          possono togliere.
+          Seleziona un sospettato (o la vittima V), poi tocca una cella per segnare un candidato (●), tieni premuto
+          per confermarne la posizione definitiva. Con "✕ Segna cella" attivo, il tap segna invece una cella come
+          non occupabile da nessuno: le X grigie (automatiche o manuali) hanno lo stesso aspetto, ma solo quelle
+          manuali si possono togliere.
         </p>
 
         <div className="mk-toolbar">
@@ -168,7 +178,6 @@ export default function PlayPage() {
           windows={puzzle.windows}
           cellClassName={(c) => {
             if (isAutoExcludedCell(c) || playState.manualMarks.includes(c)) return 'locked';
-            if (victim.cellId === c) return 'victim';
             return undefined;
           }}
           onCellClick={onCellTap}
@@ -177,6 +186,7 @@ export default function PlayPage() {
             const el = puzzle.elements.find((e) => e.cellId === c);
             const elEntry = el ? resolveElementType(el.type, puzzle.customElementTypes) : undefined;
             const confirmedSuspect = puzzle.suspects.find((s) => confirmed[s.id] === c);
+            const victimConfirmedHere = !confirmedSuspect && confirmed[VICTIM_ID] === c;
             const candidateIds = playState.candidates[c] ?? [];
             const areaId = areas.cellArea[c];
             const areaName = areaCustomName(areaId, puzzle.areaNames, areas);
@@ -194,9 +204,21 @@ export default function PlayPage() {
                     {confirmedSuspect.name[0]?.toUpperCase()}
                   </span>
                 )}
-                {!confirmedSuspect && candidateIds.length > 0 && (
+                {victimConfirmedHere && (
+                  <span className="mk-confirmed" style={{ background: puzzle.victim.color }}>
+                    V
+                  </span>
+                )}
+                {!confirmedSuspect && !victimConfirmedHere && candidateIds.length > 0 && (
                   <div className="mk-candidate-grid">
                     {candidateIds.map((sid) => {
+                      if (sid === VICTIM_ID) {
+                        return (
+                          <span key={sid} className="mk-candidate-letter" style={{ color: puzzle.victim.color }}>
+                            V
+                          </span>
+                        );
+                      }
                       const s = puzzle.suspects.find((x) => x.id === sid);
                       return s ? (
                         <span key={sid} className="mk-candidate-letter" style={{ color: s.color }}>
@@ -206,11 +228,6 @@ export default function PlayPage() {
                     })}
                   </div>
                 )}
-                {victim.cellId === c && result === 'correct' && (
-                  <span className="mk-victim-badge" title="Vittima">
-                    {victimLetter(puzzle)}
-                  </span>
-                )}
               </>
             );
           }}
@@ -218,10 +235,8 @@ export default function PlayPage() {
 
         {result === 'correct' && (
           <p className="mk-status-ok">
-            🎉 Soluzione corretta! Il killer è <strong>{killer?.name}</strong>
-            {victim.cellId
-              ? `, la vittima (${victimLetter(puzzle)}) si trova nella cella ${victim.cellId}.`
-              : '.'}
+            🎉 Soluzione corretta! Il killer è <strong>{killer?.name}</strong>, la vittima (V) si trova nella cella{' '}
+            {confirmed[VICTIM_ID]}.
           </p>
         )}
         {result === 'incorrect' && <p className="mk-status-bad">Non corretto, riprova.</p>}

@@ -11,6 +11,7 @@ function withDefaults(p: Partial<Puzzle>): Puzzle {
     areaNames: [],
     windows: [],
     disabledCells: [],
+    victim: { color: '#1a1a1a', solutionCellId: null },
     ...p,
   } as Puzzle;
 }

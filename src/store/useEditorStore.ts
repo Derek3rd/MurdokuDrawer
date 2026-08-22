@@ -33,10 +33,12 @@ interface EditorState {
   setAreaName: (cellId: string, name: string) => void;
   setSuspectSolution: (suspectId: string, cellId: string | null) => void;
   renameSuspect: (suspectId: string, name: string) => void;
+  setVictimSolution: (cellId: string | null) => void;
   setKiller: (suspectId: string | null) => void;
   addClue: (clue: DistributiveOmit<Clue, 'id'>) => void;
   updateClue: (id: string, patch: Partial<Clue>) => void;
   removeClue: (id: string) => void;
+  clearCluesForSuspect: (suspectId: string) => void;
   addGlobalRule: (rule: DistributiveOmit<GlobalRule, 'id'>) => void;
   removeGlobalRule: (id: string) => void;
 }
@@ -95,6 +97,10 @@ export const useEditorStore = create<EditorState>((set) => ({
           suspects: suspects.map((sp) =>
             sp.solutionCellId && !inBounds(sp.solutionCellId) ? { ...sp, solutionCellId: null } : sp,
           ),
+          victim:
+            s.puzzle.victim.solutionCellId && !inBounds(s.puzzle.victim.solutionCellId)
+              ? { ...s.puzzle.victim, solutionCellId: null }
+              : s.puzzle.victim,
         }),
       };
     }),
@@ -145,7 +151,11 @@ export const useEditorStore = create<EditorState>((set) => ({
       const suspects = has
         ? s.puzzle.suspects
         : s.puzzle.suspects.map((sp) => (sp.solutionCellId === cellId ? { ...sp, solutionCellId: null } : sp));
-      return { puzzle: persist({ ...s.puzzle, disabledCells, elements, suspects }) };
+      const victim =
+        !has && s.puzzle.victim.solutionCellId === cellId
+          ? { ...s.puzzle.victim, solutionCellId: null }
+          : s.puzzle.victim;
+      return { puzzle: persist({ ...s.puzzle, disabledCells, elements, suspects, victim }) };
     }),
 
   addElement: (element) =>
@@ -220,6 +230,11 @@ export const useEditorStore = create<EditorState>((set) => ({
       }),
     })),
 
+  setVictimSolution: (cellId) =>
+    set((s) => ({
+      puzzle: persist({ ...s.puzzle, victim: { ...s.puzzle.victim, solutionCellId: cellId } }),
+    })),
+
   setKiller: (suspectId) => set((s) => ({ puzzle: persist({ ...s.puzzle, killerId: suspectId }) })),
 
   addClue: (clue) =>
@@ -237,6 +252,11 @@ export const useEditorStore = create<EditorState>((set) => ({
 
   removeClue: (id) =>
     set((s) => ({ puzzle: persist({ ...s.puzzle, clues: s.puzzle.clues.filter((c) => c.id !== id) }) })),
+
+  clearCluesForSuspect: (suspectId) =>
+    set((s) => ({
+      puzzle: persist({ ...s.puzzle, clues: s.puzzle.clues.filter((c) => c.suspectId !== suspectId) }),
+    })),
 
   addGlobalRule: (rule) =>
     set((s) => ({

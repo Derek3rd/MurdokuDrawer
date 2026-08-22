@@ -112,6 +112,16 @@ export interface Suspect {
   solutionCellId: CellId | null;
 }
 
+/**
+ * La vittima: gestita come un sospettato (piazzata dal designer, soggetta allo stesso
+ * vincolo una-per-riga/colonna, giocabile con lo stesso meccanismo tap/pressione lunga),
+ * ma senza indizi propri e sempre indicata con la lettera "V".
+ */
+export interface Victim {
+  color: string;
+  solutionCellId: CellId | null;
+}
+
 interface ClueBase {
   id: string;
   suspectId: string;
@@ -195,6 +205,7 @@ export interface Puzzle {
   /** Celle "buco": non fanno parte della mappa, per griglie non rettangolari */
   disabledCells: CellId[];
   suspects: Suspect[];
+  victim: Victim;
   killerId: string | null;
   clues: Clue[];
   globalRules: GlobalRule[];
@@ -236,6 +247,7 @@ export function createEmptyPuzzle(width: number, height: number): Puzzle {
     windows: [],
     disabledCells: [],
     suspects,
+    victim: { color: '#1a1a1a', solutionCellId: null },
     killerId: null,
     clues: [],
     globalRules: [],

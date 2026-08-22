@@ -37,7 +37,7 @@ export default function HomePage() {
             <input
               type="number"
               min={2}
-              max={20}
+              max={16}
               value={width}
               onChange={(e) => setWidth(Number(e.target.value))}
             />
@@ -47,7 +47,7 @@ export default function HomePage() {
             <input
               type="number"
               min={2}
-              max={20}
+              max={16}
               value={height}
               onChange={(e) => setHeight(Number(e.target.value))}
             />
