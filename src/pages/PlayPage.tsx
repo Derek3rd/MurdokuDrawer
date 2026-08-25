@@ -174,7 +174,11 @@ export default function PlayPage() {
               key={s.id}
               className={`mk-suspect-pill ${selectedSuspectId === s.id ? 'active' : ''}`}
               style={{ background: s.color, opacity: confirmed[s.id] ? 1 : 0.85 }}
-              onClick={() => setSelectedSuspectId(s.id)}
+              onClick={() => {
+                setSelectedSuspectId(s.id);
+                setMarkMode(false);
+                setClearMode(false);
+              }}
             >
               {s.name}
               {confirmed[s.id] ? ' ✓' : ''}
@@ -183,7 +187,11 @@ export default function PlayPage() {
           <span
             className={`mk-suspect-pill ${selectedSuspectId === VICTIM_ID ? 'active' : ''}`}
             style={{ background: puzzle.victim.color, opacity: confirmed[VICTIM_ID] ? 1 : 0.85 }}
-            onClick={() => setSelectedSuspectId(VICTIM_ID)}
+            onClick={() => {
+              setSelectedSuspectId(VICTIM_ID);
+              setMarkMode(false);
+              setClearMode(false);
+            }}
           >
             V{confirmed[VICTIM_ID] ? ' ✓' : ''}
           </span>
@@ -203,6 +211,7 @@ export default function PlayPage() {
             onClick={() => {
               setMarkMode((m) => !m);
               setClearMode(false);
+              setSelectedSuspectId(null);
             }}
           >
             ✕ Segna cella
@@ -212,6 +221,7 @@ export default function PlayPage() {
             onClick={() => {
               setClearMode((m) => !m);
               setMarkMode(false);
+              setSelectedSuspectId(null);
             }}
           >
             <img src={iconCancella} alt="" className="mk-btn-icon" /> Svuota cella

@@ -63,7 +63,15 @@ export const usePlayStore = create<PlayStoreState>((set) => ({
       const manualMarks = has
         ? s.playState.manualMarks.filter((c) => c !== cellId)
         : [...s.playState.manualMarks, cellId];
-      return applyChange(s, { ...s.playState, manualMarks });
+      // Segnare una cella come "non occupabile" rende superflue le posizioni probabili lì
+      // segnate: le cancella insieme al segno manuale (solo quando si aggiunge il segno,
+      // non quando lo si toglie).
+      let candidates = s.playState.candidates;
+      if (!has && candidates[cellId]) {
+        candidates = { ...candidates };
+        delete candidates[cellId];
+      }
+      return applyChange(s, { ...s.playState, manualMarks, candidates });
     }),
 
   confirmSuspect: (suspectId, cellId) =>
