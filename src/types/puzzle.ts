@@ -13,8 +13,6 @@ import iconCespuglio from '../assets/icons/cespuglio.svg';
 import iconCestino from '../assets/icons/cestino.svg';
 import iconCono from '../assets/icons/cono.svg';
 import iconLetto from '../assets/icons/letto.svg';
-import iconLettoE from '../assets/icons/letto_e.svg';
-import iconLettoS from '../assets/icons/letto_s.svg';
 import iconLibreria from '../assets/icons/libreria.svg';
 import iconMacerie from '../assets/icons/macerie.svg';
 import iconPianta from '../assets/icons/pianta.svg';
@@ -41,6 +39,32 @@ import iconTavoloSw from '../assets/icons/tavolo_sw.svg';
 import iconTavoloW from '../assets/icons/tavolo_w.svg';
 import iconTronco from '../assets/icons/tronco.svg';
 import iconTv from '../assets/icons/tv.svg';
+
+/**
+ * Icone per oggetti ad "impronta fissa" (una sola immagine per l'intero rettangolo WxH occupato,
+ * es. letto_2x1.svg): raccolte automaticamente per convenzione di nome file "base_WxHformato.svg"
+ * (es. "auto_2x1.svg", "autobus_3x1.svg", "elefante_2x2.svg"). Aggiungere una nuova taglia (o un
+ * nuovo oggetto ad impronta fissa) richiede solo di piazzare il file con il nome giusto in
+ * assets/icons e richiamare `footprintImagesFor('base')` nel catalogo qui sotto, senza dover
+ * importare/elencare ogni immagine a mano.
+ */
+const FOOTPRINT_ICON_MODULES = import.meta.glob<string>('../assets/icons/*.svg', {
+  eager: true,
+  import: 'default',
+});
+const FOOTPRINT_SIZE_RE = /^(.+)_(\d+)x(\d+)\.svg$/;
+
+function footprintImagesFor(baseName: string): Partial<Record<string, string>> {
+  const images: Partial<Record<string, string>> = {};
+  for (const path in FOOTPRINT_ICON_MODULES) {
+    const fileName = path.split('/').pop() ?? '';
+    const match = fileName.match(FOOTPRINT_SIZE_RE);
+    if (match && match[1] === baseName) {
+      images[`${match[2]}x${match[3]}`] = FOOTPRINT_ICON_MODULES[path];
+    }
+  }
+  return images;
+}
 
 /** Omit che si distribuisce sui membri di un tipo unione discriminata. */
 export type DistributiveOmit<T, K extends keyof T> = T extends unknown ? Omit<T, K> : never;
@@ -162,11 +186,32 @@ export const ELEMENT_CATALOG: ElementCatalogEntry[] = [
     image: iconLetto,
     label: 'Letto',
     occupiable: true,
-    fixedFootprintImages: { '2x1': iconLettoE, '1x2': iconLettoS },
+    fixedFootprintImages: footprintImagesFor('letto'),
   },
   { type: 'basket', icon: '🗑️', image: iconCestino, label: 'Cestino', occupiable: false },
   { type: 'box', icon: '📦', image: iconScatola, label: 'Scatola', occupiable: false },
   { type: 'rubble', icon: '🧱', image: iconMacerie, label: 'Macerie', occupiable: false },
+  {
+    type: 'car',
+    icon: '🚗',
+    label: 'Auto',
+    occupiable: false,
+    fixedFootprintImages: footprintImagesFor('auto'),
+  },
+  {
+    type: 'bus',
+    icon: '🚌',
+    label: 'Autobus',
+    occupiable: false,
+    fixedFootprintImages: footprintImagesFor('autobus'),
+  },
+  {
+    type: 'elephant',
+    icon: '🐘',
+    label: 'Elefante',
+    occupiable: false,
+    fixedFootprintImages: footprintImagesFor('elefante'),
+  },
 ];
 
 export type ElementType = (typeof ELEMENT_CATALOG)[number]['type'];
@@ -232,6 +277,16 @@ export function resolveElementType(type: string, customTypes: CustomElementType[
   };
 }
 
+/** True se l'oggetto è ad "impronta fissa" (immagine unica per l'intero rettangolo WxH, niente rotazione/varianti
+ * per cella) e ha almeno una taglia con l'immagine disponibile (le taglie sono raccolte automaticamente da
+ * `footprintImagesFor`, quindi un oggetto dichiarato ma senza ancora nessun file "base_WxH.svg" caricato non
+ * conta come multi-cella finché quel file non viene aggiunto). */
+export function isFixedFootprintType(
+  entry: Pick<ResolvedElementType, 'fixedFootprintImages'> | undefined,
+): boolean {
+  return !!entry?.fixedFootprintImages && Object.keys(entry.fixedFootprintImages).length > 0;
+}
+
 /** Un tipo è multi-cella se ha almeno una variante "estremità" (piazzabile trascinando/collegando celle)
  * oppure un'immagine ad impronta fissa (piazzato in linea retta, con un'unica immagine per l'intero gruppo). */
 export function isMultiCellType(
@@ -239,16 +294,7 @@ export function isMultiCellType(
     | Pick<ResolvedElementType, 'capImage' | 'capImageByDirection' | 'shapesByConnections' | 'fixedFootprintImages'>
     | undefined,
 ): boolean {
-  return (
-    !!entry?.capImage || !!entry?.capImageByDirection || !!entry?.shapesByConnections || !!entry?.fixedFootprintImages
-  );
-}
-
-/** True se l'oggetto è ad "impronta fissa" (immagine unica per l'intero rettangolo WxH, niente rotazione/varianti per cella). */
-export function isFixedFootprintType(
-  entry: Pick<ResolvedElementType, 'fixedFootprintImages'> | undefined,
-): boolean {
-  return !!entry?.fixedFootprintImages;
+  return !!entry?.capImage || !!entry?.capImageByDirection || !!entry?.shapesByConnections || isFixedFootprintType(entry);
 }
 
 export interface MapElement {
