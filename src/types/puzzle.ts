@@ -8,13 +8,31 @@
 // La vittima occupa sempre l'ultima cella libera nell'area del killer.
 
 import iconAlbero from '../assets/icons/albero.svg';
+import iconCassa from '../assets/icons/cassa.svg';
+import iconCespuglio from '../assets/icons/cespuglio.svg';
 import iconCono from '../assets/icons/cono.svg';
 import iconLetto from '../assets/icons/letto.svg';
 import iconLibreria from '../assets/icons/libreria.svg';
 import iconPianta from '../assets/icons/pianta.svg';
+import iconRoccia from '../assets/icons/roccia.svg';
 import iconSedia from '../assets/icons/sedia.svg';
 import iconStatua from '../assets/icons/statua.svg';
+import iconTappeto1 from '../assets/icons/tappeto_1.svg';
+import iconTappeto2 from '../assets/icons/tappeto_2.svg';
+import iconTappeto3 from '../assets/icons/tappeto_3.svg';
+import iconTappeto4 from '../assets/icons/tappeto_4.svg';
+import iconTappeto6 from '../assets/icons/tappeto_6.svg';
 import iconTavolo from '../assets/icons/tavolo.svg';
+import iconTavoloE from '../assets/icons/tavolo_e.svg';
+import iconTavoloEs from '../assets/icons/tavolo_es.svg';
+import iconTavoloEw from '../assets/icons/tavolo_ew.svg';
+import iconTavoloN from '../assets/icons/tavolo_n.svg';
+import iconTavoloNe from '../assets/icons/tavolo_ne.svg';
+import iconTavoloNs from '../assets/icons/tavolo_ns.svg';
+import iconTavoloNw from '../assets/icons/tavolo_nw.svg';
+import iconTavoloS from '../assets/icons/tavolo_s.svg';
+import iconTavoloSw from '../assets/icons/tavolo_sw.svg';
+import iconTavoloW from '../assets/icons/tavolo_w.svg';
 import iconTronco from '../assets/icons/tronco.svg';
 import iconTv from '../assets/icons/tv.svg';
 
@@ -65,19 +83,54 @@ interface ElementCatalogEntry {
    * della rotazione CSS quando presente per quella direzione.
    */
   capImageByDirection?: Partial<Record<Direction, string>>;
+  /**
+   * Alternativa più generale, per oggetti il cui disegno differisce per ogni combinazione di
+   * collegamenti (non solo il singolo collegamento): immagine già orientata, senza rotazione,
+   * indicizzata dalla chiave canonica dell'insieme di collegamenti (vedi connectionKey() in
+   * elementShape.ts, es. "N", "NE", "NS", "NESO"). Controllata prima di capImage/cornerImage/ecc.
+   */
+  shapesByConnections?: Partial<Record<string, string>>;
 }
 
 export const ELEMENT_CATALOG: ElementCatalogEntry[] = [
   { type: 'chair', icon: '🪑', image: iconSedia, label: 'Sedia', occupiable: true },
-  { type: 'rug', icon: '🟫', label: 'Tappeto', occupiable: true },
-  { type: 'table', icon: '🍽️', image: iconTavolo, label: 'Tavolo', occupiable: false },
-  { type: 'bush', icon: '🌿', label: 'Cespuglio', occupiable: true },
+  {
+    type: 'rug',
+    icon: '🟫',
+    label: 'Tappeto',
+    occupiable: true,
+    capImage: iconTappeto1,
+    cornerImage: iconTappeto2,
+    tImage: iconTappeto3,
+    crossImage: iconTappeto4,
+    straightImage: iconTappeto6,
+  },
+  {
+    type: 'table',
+    icon: '🍽️',
+    image: iconTavolo,
+    label: 'Tavolo',
+    occupiable: false,
+    shapesByConnections: {
+      N: iconTavoloN,
+      S: iconTavoloS,
+      E: iconTavoloE,
+      O: iconTavoloW,
+      NS: iconTavoloNs,
+      EO: iconTavoloEw,
+      NE: iconTavoloNe,
+      ES: iconTavoloEs,
+      SO: iconTavoloSw,
+      NO: iconTavoloNw,
+    },
+  },
+  { type: 'bush', icon: '🌿', image: iconCespuglio, label: 'Cespuglio', occupiable: true },
   { type: 'tree', icon: '🌳', image: iconAlbero, label: 'Albero', occupiable: false },
-  { type: 'rock', icon: '🪨', label: 'Roccia', occupiable: true },
+  { type: 'rock', icon: '🪨', image: iconRoccia, label: 'Roccia', occupiable: true },
   { type: 'plant', icon: '🪴', image: iconPianta, label: 'Pianta in vaso', occupiable: false },
   { type: 'bookshelf', icon: '📚', image: iconLibreria, label: 'Libreria', occupiable: false },
   { type: 'tv', icon: '📺', image: iconTv, label: 'TV', occupiable: false },
-  { type: 'crate', icon: '🛢️', label: 'Cassa/Barile', occupiable: true },
+  { type: 'crate', icon: '🛢️', image: iconCassa, label: 'Cassa/Barile', occupiable: true },
   { type: 'cone', icon: '🔺', image: iconCono, label: 'Cono', occupiable: false },
   { type: 'statue', icon: '🗿', image: iconStatua, label: 'Statua', occupiable: false },
   { type: 'log', icon: '🪵', image: iconTronco, label: 'Tronco', occupiable: false },
@@ -105,6 +158,7 @@ export interface CustomElementType {
   tImage?: string;
   crossImage?: string;
   capImageByDirection?: Partial<Record<Direction, string>>;
+  shapesByConnections?: Partial<Record<string, string>>;
 }
 
 export interface ResolvedElementType {
@@ -118,6 +172,7 @@ export interface ResolvedElementType {
   tImage?: string;
   crossImage?: string;
   capImageByDirection?: Partial<Record<Direction, string>>;
+  shapesByConnections?: Partial<Record<string, string>>;
 }
 
 /** Risolve un tipo di oggetto (catalogo fisso o personalizzato del puzzle) nella sua definizione. */
@@ -141,9 +196,9 @@ export function resolveElementType(type: string, customTypes: CustomElementType[
 
 /** Un tipo è multi-cella se ha almeno una variante "estremità" (piazzabile trascinando/collegando celle). */
 export function isMultiCellType(
-  entry: Pick<ResolvedElementType, 'capImage' | 'capImageByDirection'> | undefined,
+  entry: Pick<ResolvedElementType, 'capImage' | 'capImageByDirection' | 'shapesByConnections'> | undefined,
 ): boolean {
-  return !!entry?.capImage || !!entry?.capImageByDirection;
+  return !!entry?.capImage || !!entry?.capImageByDirection || !!entry?.shapesByConnections;
 }
 
 export interface MapElement {

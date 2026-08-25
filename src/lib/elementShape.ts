@@ -28,6 +28,15 @@ export interface ElementVisual {
   rotationDeg: number;
 }
 
+const CONNECTION_KEY_ORDER: Direction[] = ['N', 'E', 'S', 'O'];
+
+/** Chiave canonica di un insieme di collegamenti (es. ['E','N'] -> "NE"), indipendente
+ * dall'ordine in cui le direzioni sono state trovate. */
+export function connectionKey(connections: Direction[]): string {
+  const set = new Set(connections);
+  return CONNECTION_KEY_ORDER.filter((d) => set.has(d)).join('');
+}
+
 // Ordine orario delle direzioni, usato per calcolare di quanti passi da 90° ruotare la forma
 // base per farla combaciare con il set di collegamenti reale della cella.
 const CLOCKWISE: Direction[] = ['N', 'E', 'S', 'O'];
@@ -68,6 +77,12 @@ export function resolveElementVisual(entry: ResolvedElementType, connections: Di
   const set = new Set(connections);
   const isolated: ElementVisual = { image: entry.image, icon: entry.icon, rotationDeg: 0 };
   if (set.size === 0) return isolated;
+
+  // Immagine già orientata per questa esatta combinazione di collegamenti, se presente: ha
+  // priorità sulle varianti singole ruotate via CSS (usata per disegni non semplicemente
+  // ruotabili, con un'immagine diversa per ogni orientamento).
+  const exact = entry.shapesByConnections?.[connectionKey(connections)];
+  if (exact) return { image: exact, icon: entry.icon, rotationDeg: 0 };
 
   if (set.size === 1) {
     const dir = connections[0];
