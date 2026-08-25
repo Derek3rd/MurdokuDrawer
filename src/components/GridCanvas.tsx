@@ -2,6 +2,7 @@ import { useRef, useState, type CSSProperties, type PointerEvent as ReactPointer
 import { cellId, type CellId, type Direction, type WindowEdge } from '../types/puzzle';
 import { computeAreas, isWallBetween } from '../lib/grid';
 import type { Puzzle } from '../types/puzzle';
+import iconCroce from '../assets/ui/croce.svg';
 import './GridCanvas.css';
 
 const GAP = 4; // px, spessore della fascia cliccabile/trascinabile per i muri interni
@@ -340,7 +341,13 @@ export function GridCanvas({
   return (
     <div
       className="mk-grid"
-      style={{ gridTemplateColumns: colTemplate, gridTemplateRows: rowTemplate }}
+      style={
+        {
+          gridTemplateColumns: colTemplate,
+          gridTemplateRows: rowTemplate,
+          '--icon-croce': `url("${iconCroce}")`,
+        } as CSSProperties
+      }
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={endDrag}

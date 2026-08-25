@@ -49,15 +49,21 @@
 }
 
 .mk-cell.locked::before {
-  content: '✕';
+  content: '';
   position: absolute;
   inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 1.6rem;
-  font-weight: 700;
-  color: rgba(0, 0, 0, 0.4);
+  margin: auto;
+  width: 55%;
+  height: 55%;
+  background-color: rgba(0, 0, 0, 0.4);
+  -webkit-mask-image: var(--icon-croce);
+  mask-image: var(--icon-croce);
+  -webkit-mask-size: contain;
+  mask-size: contain;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
   pointer-events: none;
 }
 

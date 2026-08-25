@@ -3,6 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import { GridCanvas } from '../components/GridCanvas';
 import SuspectMarker from '../components/SuspectMarker';
 import iconCancella from '../assets/ui/cancella.svg';
+import iconCroce from '../assets/ui/croce.svg';
 import { usePlayStore } from '../store/usePlayStore';
 import { loadPuzzle } from '../storage/puzzleStorage';
 import { areaBottomLabelAnchor, computeAreas } from '../lib/grid';
@@ -199,7 +200,7 @@ export default function PlayPage() {
 
         <p style={{ fontSize: '0.85rem', color: '#666' }}>
           Seleziona un sospettato (o la vittima V), poi tocca una cella per segnare un candidato (●), tieni premuto
-          per confermarne la posizione definitiva. Con "✕ Segna cella" attivo, il tap segna invece una cella come
+          per confermarne la posizione definitiva. Con "Segna cella" attivo, il tap segna invece una cella come
           non occupabile da nessuno: le X grigie (automatiche o manuali) hanno lo stesso aspetto, ma solo quelle
           manuali si possono togliere. Con "Svuota cella" attivo, il tap cancella tutte le posizioni probabili
           segnate su quella cella in un colpo solo.
@@ -214,7 +215,7 @@ export default function PlayPage() {
               setSelectedSuspectId(null);
             }}
           >
-            ✕ Segna cella
+            <img src={iconCroce} alt="" className="mk-btn-icon" /> Segna cella
           </button>
           <button
             className={`mk-btn ${clearMode ? '' : 'secondary'}`}
