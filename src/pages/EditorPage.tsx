@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { GridCanvas } from '../components/GridCanvas';
 import ClueForm from '../components/ClueForm';
 import CustomElementForm from '../components/CustomElementForm';
+import SuspectMarker from '../components/SuspectMarker';
 import { useEditorStore } from '../store/useEditorStore';
 import { areaColor } from '../components/GridCanvas';
 import { areaBottomLabelAnchor, areaCentroidCell, computeAreas } from '../lib/grid';
@@ -351,16 +352,8 @@ export default function EditorPage() {
                     {visual.image ? <img src={visual.image} alt="" /> : visual.icon}
                   </span>
                 )}
-                {sus && (
-                  <span className="mk-confirmed" style={{ background: sus.color }}>
-                    {sus.name[0]?.toUpperCase()}
-                  </span>
-                )}
-                {isVictimHere && !sus && (
-                  <span className="mk-victim-badge" title="Vittima">
-                    V
-                  </span>
-                )}
+                {sus && <SuspectMarker color={sus.color} letter={sus.name[0]?.toUpperCase() ?? ''} />}
+                {isVictimHere && !sus && <SuspectMarker color={puzzle.victim.color} letter="V" dashed title="Vittima" />}
               </>
             );
           }}

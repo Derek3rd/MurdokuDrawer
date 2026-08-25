@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { GridCanvas } from '../components/GridCanvas';
+import SuspectMarker from '../components/SuspectMarker';
 import { usePlayStore } from '../store/usePlayStore';
 import { loadPuzzle } from '../storage/puzzleStorage';
 import { areaBottomLabelAnchor, computeAreas } from '../lib/grid';
@@ -238,15 +239,9 @@ export default function PlayPage() {
                   </span>
                 )}
                 {confirmedSuspect && (
-                  <span className="mk-confirmed" style={{ background: confirmedSuspect.color }}>
-                    {confirmedSuspect.name[0]?.toUpperCase()}
-                  </span>
+                  <SuspectMarker color={confirmedSuspect.color} letter={confirmedSuspect.name[0]?.toUpperCase() ?? ''} />
                 )}
-                {victimConfirmedHere && (
-                  <span className="mk-confirmed" style={{ background: puzzle.victim.color }}>
-                    V
-                  </span>
-                )}
+                {victimConfirmedHere && <SuspectMarker color={puzzle.victim.color} letter="V" dashed title="Vittima" />}
                 {!confirmedSuspect && !victimConfirmedHere && candidateIds.length > 0 && (
                   <div className="mk-candidate-grid">
                     {candidateIds.map((sid) => {
