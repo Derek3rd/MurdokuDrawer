@@ -149,7 +149,9 @@ function buildAutoCatalog(): Map<string, AutoCatalogEntry> {
     if (hasOccupiableMark) entry.hasOccupiableMark = true;
 
     const url = ICON_MODULES[path];
-    if (!variant) {
+    if (!variant || variant === '0') {
+      // "0" = isolata per convenzione esplicita nel nome file (utile per gli oggetti a
+      // connettori come il tappeto, che non hanno un file base senza suffisso).
       entry.image = url;
       continue;
     }
