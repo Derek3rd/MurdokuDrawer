@@ -29,6 +29,11 @@ type WallSubTool = 'walls' | 'cells' | 'windows';
 /** Chiave riservata usata per selezionare/piazzare la vittima nello strumento "Sospettati". */
 const VICTIM_ID = 'victim';
 
+/** Etichetta leggibile per una categoria di oggetti (nome della sottocartella in assets/icons/). */
+function categoryLabel(category: string): string {
+  return category.charAt(0).toUpperCase() + category.slice(1);
+}
+
 export default function EditorPage() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -88,6 +93,18 @@ export default function EditorPage() {
   const selectedElementEntry = resolveElementType(selectedElementType, puzzle.customElementTypes);
   const selectedElementIsMultiCell = isMultiCellType(selectedElementEntry);
   const selectedElementIsFixedFootprint = isFixedFootprintType(selectedElementEntry);
+
+  // Oggetti del catalogo raggruppati per categoria (sottocartella di provenienza in assets/icons/),
+  // nell'ordine di prima comparsa, per mostrarli a sezioni nella tavolozza dello strumento "Oggetti".
+  const elementsByCategory: [string, typeof ELEMENT_CATALOG][] = [];
+  for (const entry of ELEMENT_CATALOG) {
+    let group = elementsByCategory.find(([cat]) => cat === entry.category);
+    if (!group) {
+      group = [entry.category, []];
+      elementsByCategory.push(group);
+    }
+    group[1].push(entry);
+  }
 
   // Oggetti ad impronta fissa (es. letto): un'unica immagine copre l'intero gruppo di celle, al
   // posto dell'icona per-cella. `footprintCoveredCells` elenca le celle già coperte da un overlay,
@@ -385,19 +402,33 @@ export default function EditorPage() {
 
         {tool === 'elements' && (
           <>
+            {elementsByCategory.map(([category, entries]) => (
+              <div key={category} style={{ marginBottom: '0.5rem' }}>
+                <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#888', textTransform: 'uppercase' }}>
+                  {categoryLabel(category)}
+                </div>
+                <div className="mk-row" style={{ alignItems: 'center' }}>
+                  {entries.map((entry) => (
+                    <span
+                      key={entry.type}
+                      className={`mk-suspect-pill ${selectedElementType === entry.type ? 'active' : ''}`}
+                      style={{ background: '#495057' }}
+                      onClick={() => setSelectedElementType(entry.type)}
+                      title={isMultiCellType(entry) ? `${entry.label} (multi-cella: trascina in linea)` : entry.label}
+                    >
+                      {entry.icon} {entry.label}
+                      {isMultiCellType(entry) && ' 🔗'}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            ))}
+            {puzzle.customElementTypes.length > 0 && (
+              <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#888', textTransform: 'uppercase' }}>
+                Personalizzati
+              </div>
+            )}
             <div className="mk-row" style={{ marginBottom: '0.5rem', alignItems: 'center' }}>
-              {ELEMENT_CATALOG.map((entry) => (
-                <span
-                  key={entry.type}
-                  className={`mk-suspect-pill ${selectedElementType === entry.type ? 'active' : ''}`}
-                  style={{ background: '#495057' }}
-                  onClick={() => setSelectedElementType(entry.type)}
-                  title={isMultiCellType(entry) ? `${entry.label} (multi-cella: trascina in linea)` : entry.label}
-                >
-                  {entry.icon} {entry.label}
-                  {isMultiCellType(entry) && ' 🔗'}
-                </span>
-              ))}
               {puzzle.customElementTypes.map((entry) => (
                 <span
                   key={entry.id}
