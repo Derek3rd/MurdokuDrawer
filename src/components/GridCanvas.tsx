@@ -4,7 +4,7 @@ import { computeAreas } from '../lib/grid';
 import type { Puzzle } from '../types/puzzle';
 import './GridCanvas.css';
 
-const GAP = 10; // px, spessore della fascia cliccabile/trascinabile per i muri interni
+const GAP = 4; // px, spessore della fascia cliccabile/trascinabile per i muri interni
 const PERI_GAP = 14; // px, spessore della fascia cliccabile per le finestre sul perimetro
 const LONG_PRESS_MS = 450;
 const MOVE_CANCEL_PX = 10;

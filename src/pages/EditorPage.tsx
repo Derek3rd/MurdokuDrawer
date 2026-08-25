@@ -345,7 +345,7 @@ export default function EditorPage() {
               <>
                 {elEntry && visual && (
                   <span
-                    className="mk-element-icon"
+                    className={`mk-element-icon ${isMultiCellType(elEntry) ? 'mk-element-icon-full' : ''}`}
                     title={elEntry.label}
                     style={visual.rotationDeg ? { transform: `rotate(${visual.rotationDeg}deg)` } : undefined}
                   >

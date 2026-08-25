@@ -2,13 +2,14 @@ import { useEffect, useMemo, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { GridCanvas } from '../components/GridCanvas';
 import SuspectMarker from '../components/SuspectMarker';
+import iconCancella from '../assets/icons/cancella.svg';
 import { usePlayStore } from '../store/usePlayStore';
 import { loadPuzzle } from '../storage/puzzleStorage';
 import { areaBottomLabelAnchor, computeAreas } from '../lib/grid';
 import { describeClue } from '../lib/describeClue';
 import { areaCustomName, areaDisplayName } from '../lib/areaLabel';
 import { elementConnections, resolveElementVisual } from '../lib/elementShape';
-import { parseCellId, resolveElementType, type CellId, type Puzzle } from '../types/puzzle';
+import { isMultiCellType, parseCellId, resolveElementType, type CellId, type Puzzle } from '../types/puzzle';
 
 /** Chiave riservata usata per la vittima nelle mappe confirmed/candidates, come un sospettato in più. */
 const VICTIM_ID = 'victim';
@@ -26,13 +27,26 @@ function hexToRgba(hex: string, alpha: number): string {
 export default function PlayPage() {
   const { id } = useParams();
   const [puzzle, setPuzzle] = useState<Puzzle | null>(null);
-  const { puzzleId, playState, history, load, toggleCandidate, toggleManualMark, confirmSuspect, unconfirmSuspect, undo, reset } =
-    usePlayStore();
+  const {
+    puzzleId,
+    playState,
+    history,
+    load,
+    toggleCandidate,
+    clearCellCandidates,
+    toggleManualMark,
+    confirmSuspect,
+    unconfirmSuspect,
+    undo,
+    reset,
+  } = usePlayStore();
   const [selectedSuspectId, setSelectedSuspectId] = useState<string | null>(null);
   const [result, setResult] = useState<'pending' | 'correct' | 'incorrect'>('pending');
   // In questa modalità il tap segna/toglie una X manuale sulla cella (non legata a un
   // sospettato), invece di segnare un candidato per il sospettato selezionato.
   const [markMode, setMarkMode] = useState(false);
+  // In questa modalità il tap svuota tutte le posizioni probabili segnate su una cella.
+  const [clearMode, setClearMode] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -82,13 +96,18 @@ export default function PlayPage() {
   };
 
   // Click breve: in modalità "segna cella" segna/toglie una X manuale sulla cella
-  // (uguale nell'aspetto a quella automatica, ma non legata ad un sospettato);
-  // altrimenti segna/toglie un candidato per il sospettato selezionato. Le X
-  // automatiche di riga/colonna sono calcolate a parte: il giocatore non può toglierle.
+  // (uguale nell'aspetto a quella automatica, ma non legata ad un sospettato); in modalità
+  // "svuota cella" cancella tutte le posizioni probabili segnate lì; altrimenti segna/toglie
+  // un candidato per il sospettato selezionato. Le X automatiche di riga/colonna sono
+  // calcolate a parte: il giocatore non può toglierle.
   const onCellTap = (c: CellId) => {
     if (puzzle.disabledCells.includes(c)) return; // cella fuori dalla mappa
     if (markMode) {
       toggleManualMark(c);
+      return;
+    }
+    if (clearMode) {
+      clearCellCandidates(c);
       return;
     }
     if (!selectedSuspectId) return;
@@ -169,12 +188,28 @@ export default function PlayPage() {
           Seleziona un sospettato (o la vittima V), poi tocca una cella per segnare un candidato (●), tieni premuto
           per confermarne la posizione definitiva. Con "✕ Segna cella" attivo, il tap segna invece una cella come
           non occupabile da nessuno: le X grigie (automatiche o manuali) hanno lo stesso aspetto, ma solo quelle
-          manuali si possono togliere.
+          manuali si possono togliere. Con "Svuota cella" attivo, il tap cancella tutte le posizioni probabili
+          segnate su quella cella in un colpo solo.
         </p>
 
         <div className="mk-toolbar">
-          <button className={`mk-btn ${markMode ? '' : 'secondary'}`} onClick={() => setMarkMode((m) => !m)}>
+          <button
+            className={`mk-btn ${markMode ? '' : 'secondary'}`}
+            onClick={() => {
+              setMarkMode((m) => !m);
+              setClearMode(false);
+            }}
+          >
             ✕ Segna cella
+          </button>
+          <button
+            className={`mk-btn ${clearMode ? '' : 'secondary'}`}
+            onClick={() => {
+              setClearMode((m) => !m);
+              setMarkMode(false);
+            }}
+          >
+            <img src={iconCancella} alt="" className="mk-btn-icon" /> Svuota cella
           </button>
           <button className="mk-btn" onClick={checkSolution}>
             Verifica soluzione
@@ -231,7 +266,7 @@ export default function PlayPage() {
               <>
                 {elEntry && visual && (
                   <span
-                    className="mk-element-icon"
+                    className={`mk-element-icon ${isMultiCellType(elEntry) ? 'mk-element-icon-full' : ''}`}
                     title={elEntry.label}
                     style={visual.rotationDeg ? { transform: `rotate(${visual.rotationDeg}deg)` } : undefined}
                   >

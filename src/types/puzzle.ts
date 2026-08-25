@@ -10,11 +10,14 @@
 import iconAlbero from '../assets/icons/albero.svg';
 import iconCassa from '../assets/icons/cassa.svg';
 import iconCespuglio from '../assets/icons/cespuglio.svg';
+import iconCestino from '../assets/icons/cestino.svg';
 import iconCono from '../assets/icons/cono.svg';
 import iconLetto from '../assets/icons/letto.svg';
 import iconLibreria from '../assets/icons/libreria.svg';
+import iconMacerie from '../assets/icons/macerie.svg';
 import iconPianta from '../assets/icons/pianta.svg';
 import iconRoccia from '../assets/icons/roccia.svg';
+import iconScatola from '../assets/icons/scatola.svg';
 import iconSedia from '../assets/icons/sedia.svg';
 import iconStatua from '../assets/icons/statua.svg';
 import iconTappeto1 from '../assets/icons/tappeto_1.svg';
@@ -135,6 +138,9 @@ export const ELEMENT_CATALOG: ElementCatalogEntry[] = [
   { type: 'statue', icon: '🗿', image: iconStatua, label: 'Statua', occupiable: false },
   { type: 'log', icon: '🪵', image: iconTronco, label: 'Tronco', occupiable: false },
   { type: 'bed', icon: '🛏️', image: iconLetto, label: 'Letto', occupiable: true },
+  { type: 'basket', icon: '🗑️', image: iconCestino, label: 'Cestino', occupiable: false },
+  { type: 'box', icon: '📦', image: iconScatola, label: 'Scatola', occupiable: false },
+  { type: 'rubble', icon: '🧱', image: iconMacerie, label: 'Macerie', occupiable: false },
 ];
 
 export type ElementType = (typeof ELEMENT_CATALOG)[number]['type'];
