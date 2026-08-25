@@ -4,7 +4,7 @@ import { computeAreas } from '../lib/grid';
 import type { Puzzle } from '../types/puzzle';
 import './GridCanvas.css';
 
-const GAP = 10; // px, spessore della fascia cliccabile/trascinabile per i muri interni
+const GAP = 4; // px, spessore della fascia cliccabile/trascinabile per i muri interni
 const PERI_GAP = 14; // px, spessore della fascia cliccabile per le finestre sul perimetro
 const LONG_PRESS_MS = 450;
 const MOVE_CANCEL_PX = 10;
@@ -29,12 +29,21 @@ interface GridCanvasProps {
   onCellClick?: (cell: CellId) => void;
   /** Pressione prolungata (long-press) su una cella. Se assente, le celle si comportano come un click semplice. */
   onCellLongPress?: (cell: CellId) => void;
+  /**
+   * Se attivo, la pressione su una cella avvia un trascinamento tra celle adiacenti (per
+   * piazzare oggetti multi-cella) invece del normale click/pressione lunga. Al rilascio,
+   * `onElementDragComplete` riceve le celle toccate nell'ordine (anche una sola, per un tap semplice).
+   */
+  elementDragMode?: boolean;
+  onElementDragComplete?: (cells: CellId[]) => void;
   onEdgeClick?: (edge: Edge) => void;
   editableWalls?: boolean;
   /** Finestre segnate sul perimetro esterno rettangolare della griglia. */
   windows?: WindowEdge[];
   onWindowClick?: (edge: WindowEdge) => void;
   editableWindows?: boolean;
+  /** Etichette dei nomi delle aree, piazzate fuori dalle celle appena sotto la zona (vedi areaBottomLabelAnchor). */
+  areaLabels?: { row: number; colMin: number; colMax: number; text: string }[];
 }
 
 function edgeFromElement(el: Element | null): Edge | null {
@@ -45,6 +54,19 @@ function edgeFromElement(el: Element | null): Edge | null {
   return null;
 }
 
+function cellIdFromElement(el: Element | null): CellId | null {
+  // Usa closest() perché il punto puntato può cadere su un figlio della cella (icona, badge...).
+  const found = el?.closest('[data-cell-id]');
+  return found instanceof HTMLElement ? (found.dataset.cellId ?? null) : null;
+}
+
+/** true se le due celle sono ortogonalmente adiacenti (per il trascinamento in linea). */
+function isOrthogonallyAdjacent(a: CellId, b: CellId): boolean {
+  const [ar, ac] = a.split('-').map(Number);
+  const [br, bc] = b.split('-').map(Number);
+  return Math.abs(ar - br) + Math.abs(ac - bc) === 1;
+}
+
 export function GridCanvas({
   puzzle,
   renderCell,
@@ -52,11 +74,14 @@ export function GridCanvas({
   cellStyle,
   onCellClick,
   onCellLongPress,
+  elementDragMode = false,
+  onElementDragComplete,
   onEdgeClick,
   editableWalls = false,
   windows = [],
   onWindowClick,
   editableWindows = false,
+  areaLabels = [],
 }: GridCanvasProps) {
   const { width, height } = puzzle;
   const areas = computeAreas(puzzle);
@@ -68,6 +93,8 @@ export function GridCanvas({
     null,
   );
   const [pressingCell, setPressingCell] = useState<CellId | null>(null);
+  const elementDragRef = useRef<{ active: boolean; path: CellId[] } | null>(null);
+  const [elementDragPath, setElementDragPath] = useState<CellId[]>([]);
 
   const paintEdge = (edge: Edge) => {
     const key = `${edge.side}:${edge.cell}`;
@@ -92,6 +119,24 @@ export function GridCanvas({
       if (edge) paintEdge(edge);
       return;
     }
+    if (elementDragRef.current?.active) {
+      e.preventDefault();
+      const overId = cellIdFromElement(document.elementFromPoint(e.clientX, e.clientY));
+      const path = elementDragRef.current.path;
+      const last = path[path.length - 1];
+      if (
+        overId &&
+        overId !== last &&
+        !path.includes(overId) &&
+        !disabledSet.has(overId) &&
+        isOrthogonallyAdjacent(last, overId)
+      ) {
+        const nextPath = [...path, overId];
+        elementDragRef.current.path = nextPath;
+        setElementDragPath(nextPath);
+      }
+      return;
+    }
     const press = pressRef.current;
     if (press?.timer != null && Math.hypot(e.clientX - press.x, e.clientY - press.y) > MOVE_CANCEL_PX) {
       window.clearTimeout(press.timer);
@@ -102,6 +147,12 @@ export function GridCanvas({
 
   const endDrag = () => {
     if (dragRef.current) dragRef.current.active = false;
+    if (elementDragRef.current?.active) {
+      const path = elementDragRef.current.path;
+      elementDragRef.current = null;
+      setElementDragPath([]);
+      onElementDragComplete?.(path);
+    }
   };
 
   const clearPress = () => {
@@ -111,6 +162,12 @@ export function GridCanvas({
   };
 
   const handleCellPointerDown = (id: CellId) => (e: ReactPointerEvent<HTMLDivElement>) => {
+    if (elementDragMode) {
+      e.preventDefault();
+      elementDragRef.current = { active: true, path: [id] };
+      setElementDragPath([id]);
+      return;
+    }
     if (!onCellClick && !onCellLongPress) return;
     e.preventDefault();
     const x = e.clientX;
@@ -172,7 +229,8 @@ export function GridCanvas({
       cells.push(
         <div
           key={id}
-          className={`mk-cell ${isDisabled ? 'mk-cell-disabled' : ''} ${cellClassName?.(id) ?? ''} ${pressingCell === id ? 'pressing' : ''}`}
+          data-cell-id={id}
+          className={`mk-cell ${isDisabled ? 'mk-cell-disabled' : ''} ${cellClassName?.(id) ?? ''} ${pressingCell === id ? 'pressing' : ''} ${elementDragPath.includes(id) ? 'mk-cell-drag-path' : ''}`}
           style={{ gridRow: 2 * r + 2, gridColumn: 2 * c + 2, background: bg, ...(isDisabled ? undefined : cellStyle?.(id)) }}
           onPointerDown={handleCellPointerDown(id)}
           onPointerUp={handleCellPointerUp(id)}
@@ -236,6 +294,20 @@ export function GridCanvas({
         if (c === width - 1) cells.push(windowEdge(id, 'E', 2 * r + 2, 2 * width + 1));
       }
     }
+  }
+
+  // Etichette dei nomi delle aree: elementi a parte (non annidati in una .mk-cell), così non
+  // vengono ritagliati dal suo overflow:hidden e possono sporgere fuori, sotto la zona.
+  for (const label of areaLabels) {
+    cells.push(
+      <div
+        key={`area-label-${label.row}-${label.colMin}-${label.colMax}`}
+        className="mk-area-name"
+        style={{ gridRow: 2 * label.row + 2, gridColumn: `${2 * label.colMin + 2} / ${2 * label.colMax + 3}` }}
+      >
+        {label.text}
+      </div>,
+    );
   }
 
   return (

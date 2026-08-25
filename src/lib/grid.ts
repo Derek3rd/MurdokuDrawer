@@ -87,6 +87,19 @@ export function areaCentroidCell(cells: CellId[]): CellId {
   return best;
 }
 
+/**
+ * Posizione per l'etichetta del nome di un'area, sempre nella parte più bassa della zona:
+ * riga più in basso tra le sue celle, centrata sull'estensione in colonne dell'intera area
+ * (non solo della riga più bassa). Usata per piazzare l'etichetta fuori dalle celle, appena
+ * sotto l'area, invece che dentro una cella specifica.
+ */
+export function areaBottomLabelAnchor(cells: CellId[]): { row: number; colMin: number; colMax: number } {
+  const parsed = cells.map(parseCellId);
+  const row = Math.max(...parsed.map((p) => p.row));
+  const cols = parsed.map((p) => p.col);
+  return { row, colMin: Math.min(...cols), colMax: Math.max(...cols) };
+}
+
 export function isAdjacent(a: CellId, b: CellId): boolean {
   const ca = parseCellId(a);
   const cb = parseCellId(b);

@@ -6,25 +6,83 @@ interface CustomElementFormProps {
   onCancel: () => void;
 }
 
-export default function CustomElementForm({ onSubmit, onCancel }: CustomElementFormProps) {
-  const [name, setName] = useState('');
+interface ImagePickerProps {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+}
+
+function ImagePicker({ label, value, onChange }: ImagePickerProps) {
   const [sourceMode, setSourceMode] = useState<'upload' | 'url'>('upload');
-  const [imageUrl, setImageUrl] = useState('');
-  const [imageDataUri, setImageDataUri] = useState('');
-  const [occupiable, setOccupiable] = useState(true);
 
   const handleFile = (file: File) => {
     const reader = new FileReader();
-    reader.onload = () => setImageDataUri(typeof reader.result === 'string' ? reader.result : '');
+    reader.onload = () => onChange(typeof reader.result === 'string' ? reader.result : '');
     reader.readAsDataURL(file);
   };
 
-  const image = sourceMode === 'upload' ? imageDataUri : imageUrl.trim();
-  const canSubmit = name.trim() !== '' && image !== '';
+  return (
+    <div className="mk-row" style={{ alignItems: 'center' }}>
+      <label className="mk-field">
+        {label}
+        <select value={sourceMode} onChange={(e) => setSourceMode(e.target.value as 'upload' | 'url')}>
+          <option value="upload">Carica un file</option>
+          <option value="url">Link ad un'immagine</option>
+        </select>
+      </label>
+      {sourceMode === 'upload' ? (
+        <label className="mk-field">
+          File (PNG, SVG, JPG...)
+          <input
+            type="file"
+            accept="image/*"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) handleFile(file);
+            }}
+          />
+        </label>
+      ) : (
+        <label className="mk-field" style={{ flex: 1 }}>
+          URL immagine
+          <input value={value} onChange={(e) => onChange(e.target.value)} placeholder="https://esempio.com/img.png" />
+        </label>
+      )}
+      {value && <img src={value} alt="Anteprima" style={{ width: 40, height: 40, objectFit: 'contain' }} />}
+    </div>
+  );
+}
+
+export default function CustomElementForm({ onSubmit, onCancel }: CustomElementFormProps) {
+  const [name, setName] = useState('');
+  const [image, setImage] = useState('');
+  const [occupiable, setOccupiable] = useState(true);
+  const [multiCell, setMultiCell] = useState(false);
+  const [capImage, setCapImage] = useState('');
+  const [cornerImage, setCornerImage] = useState('');
+  const [straightImage, setStraightImage] = useState('');
+  const [tImage, setTImage] = useState('');
+  const [crossImage, setCrossImage] = useState('');
+
+  const canSubmit =
+    name.trim() !== '' && image !== '' && (!multiCell || (capImage !== '' && cornerImage !== '' && straightImage !== ''));
 
   const submit = () => {
     if (!canSubmit) return;
-    onSubmit({ name: name.trim(), image, occupiable });
+    onSubmit({
+      name: name.trim(),
+      image,
+      occupiable,
+      ...(multiCell
+        ? {
+            capImage,
+            cornerImage,
+            straightImage,
+            ...(tImage ? { tImage } : {}),
+            ...(crossImage ? { crossImage } : {}),
+          }
+        : {}),
+    });
   };
 
   return (
@@ -34,37 +92,8 @@ export default function CustomElementForm({ onSubmit, onCancel }: CustomElementF
         <input value={name} onChange={(e) => setName(e.target.value)} placeholder="es. Divano" />
       </label>
 
-      <div className="mk-row" style={{ marginTop: '0.5rem' }}>
-        <label className="mk-field">
-          Immagine
-          <select value={sourceMode} onChange={(e) => setSourceMode(e.target.value as 'upload' | 'url')}>
-            <option value="upload">Carica un file</option>
-            <option value="url">Link ad un'immagine</option>
-          </select>
-        </label>
-        {sourceMode === 'upload' ? (
-          <label className="mk-field">
-            File (PNG, SVG, JPG...)
-            <input
-              type="file"
-              accept="image/*"
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (file) handleFile(file);
-              }}
-            />
-          </label>
-        ) : (
-          <label className="mk-field" style={{ flex: 1 }}>
-            URL immagine
-            <input
-              value={imageUrl}
-              onChange={(e) => setImageUrl(e.target.value)}
-              placeholder="https://esempio.com/divano.png"
-            />
-          </label>
-        )}
-        {image && <img src={image} alt="Anteprima" style={{ width: 48, height: 48, objectFit: 'contain' }} />}
+      <div style={{ marginTop: '0.5rem' }}>
+        <ImagePicker label={multiCell ? 'Immagine (cella isolata)' : 'Immagine'} value={image} onChange={setImage} />
       </div>
 
       <label className="mk-field" style={{ marginTop: '0.5rem' }}>
@@ -73,6 +102,31 @@ export default function CustomElementForm({ onSubmit, onCancel }: CustomElementF
           sospettati possono stare sopra questo oggetto
         </span>
       </label>
+
+      <label className="mk-field" style={{ marginTop: '0.5rem' }}>
+        <span>
+          <input type="checkbox" checked={multiCell} onChange={(e) => setMultiCell(e.target.checked)} /> Oggetto
+          multi-cella (es. un tavolo lungo): si piazza trascinando su più celle in linea
+        </span>
+      </label>
+
+      {multiCell && (
+        <div style={{ marginTop: '0.5rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+          <p style={{ fontSize: '0.8rem', color: '#666', margin: 0 }}>
+            Servono altre 3 immagini per le celle collegate a una, due (ad angolo) o due (opposte) celle vicine
+            dello stesso oggetto.
+          </p>
+          <ImagePicker label="Immagine (un collegamento)" value={capImage} onChange={setCapImage} />
+          <ImagePicker label="Immagine (due collegamenti ad angolo)" value={cornerImage} onChange={setCornerImage} />
+          <ImagePicker label="Immagine (due collegamenti opposti)" value={straightImage} onChange={setStraightImage} />
+          <p style={{ fontSize: '0.8rem', color: '#666', margin: 0 }}>
+            Opzionali: solo se l'oggetto può diramarsi (celle collegate cliccando accanto a un pezzo già
+            piazzato, non solo trascinando in linea).
+          </p>
+          <ImagePicker label="Immagine (incrocio a T, tre collegamenti)" value={tImage} onChange={setTImage} />
+          <ImagePicker label="Immagine (incrocio a croce, quattro collegamenti)" value={crossImage} onChange={setCrossImage} />
+        </div>
+      )}
 
       <div className="mk-row" style={{ marginTop: '0.5rem' }}>
         <button className="mk-btn" onClick={submit} disabled={!canSubmit}>

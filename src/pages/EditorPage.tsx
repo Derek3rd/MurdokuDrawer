@@ -3,13 +3,23 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { GridCanvas } from '../components/GridCanvas';
 import ClueForm from '../components/ClueForm';
 import CustomElementForm from '../components/CustomElementForm';
+import SuspectMarker from '../components/SuspectMarker';
 import { useEditorStore } from '../store/useEditorStore';
 import { areaColor } from '../components/GridCanvas';
-import { areaCentroidCell, computeAreas } from '../lib/grid';
+import { areaBottomLabelAnchor, areaCentroidCell, computeAreas } from '../lib/grid';
 import { areaLabel, areaDisplayName, areaCustomName } from '../lib/areaLabel';
 import { describeClue } from '../lib/describeClue';
 import { downloadPuzzleAsFile } from '../storage/puzzleStorage';
-import { ELEMENT_CATALOG, parseCellId, resolveElementType, type CellId, type Direction } from '../types/puzzle';
+import { elementConnections, resolveElementVisual } from '../lib/elementShape';
+import {
+  cellId,
+  ELEMENT_CATALOG,
+  isMultiCellType,
+  parseCellId,
+  resolveElementType,
+  type CellId,
+  type Direction,
+} from '../types/puzzle';
 
 type Tool = 'walls' | 'elements' | 'suspects';
 
@@ -20,9 +30,9 @@ export default function EditorPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { puzzle, loadPuzzleById, rename, resize, toggleWallRight, toggleWallBottom, toggleWindow,
-    toggleCellDisabled, addElement, removeElement, addCustomElementType, removeCustomElementType, setAreaName,
-    setSuspectSolution, renameSuspect, setVictimSolution, setKiller, addClue, removeClue, clearCluesForSuspect,
-    addGlobalRule, removeGlobalRule } =
+    toggleCellDisabled, addElement, addElementChain, addElementToGroup, removeElement, addCustomElementType,
+    removeCustomElementType, setAreaName, setSuspectSolution, renameSuspect, setVictimSolution, setKiller, addClue,
+    removeClue, clearCluesForSuspect, addGlobalRule, removeGlobalRule } =
     useEditorStore();
 
   useEffect(() => {
@@ -69,6 +79,50 @@ export default function EditorPage() {
       const p = parseCellId(cid);
       return p.row === row || p.col === col;
     });
+  };
+
+  const selectedElementEntry = resolveElementType(selectedElementType, puzzle.customElementTypes);
+  const selectedElementIsMultiCell = isMultiCellType(selectedElementEntry);
+
+  // Cella adiacente (N/S/E/O) con un elemento dello stesso tipo, se presente: usata per collegare
+  // un click singolo ad un oggetto multi-cella già piazzato (permette di formare incroci a T/croce).
+  const adjacentSameTypeElement = (c: CellId, type: string) => {
+    const { row, col } = parseCellId(c);
+    const neighborIds = [cellId(row - 1, col), cellId(row + 1, col), cellId(row, col - 1), cellId(row, col + 1)];
+    for (const n of neighborIds) {
+      const el = puzzle.elements.find((e) => e.cellId === n && e.type === type);
+      if (el) return el;
+    }
+    return undefined;
+  };
+
+  // Trascinamento su più celle (solo per oggetti multi-cella): una sola cella si comporta come
+  // il click semplice (aggiungi/sostituisci/rimuovi, collegandosi ad un oggetto adiacente dello
+  // stesso tipo se già presente), più celle formano un unico oggetto collegato, rimpiazzando
+  // eventuali oggetti già presenti sul percorso.
+  const onElementDragComplete = (cells: CellId[]) => {
+    if (cells.length === 0 || puzzle.disabledCells.includes(cells[0])) return;
+    if (cells.length === 1) {
+      const c = cells[0];
+      const existing = elementAt(c);
+      if (existing?.type === selectedElementType) {
+        removeElement(existing.id);
+        return;
+      }
+      if (existing) removeElement(existing.id);
+      const anchor = selectedElementIsMultiCell ? adjacentSameTypeElement(c, selectedElementType) : undefined;
+      if (anchor) {
+        addElementToGroup(selectedElementType, c, anchor.cellId);
+      } else {
+        addElement({ type: selectedElementType, cellId: c });
+      }
+      return;
+    }
+    for (const c of cells) {
+      const existing = elementAt(c);
+      if (existing) removeElement(existing.id);
+    }
+    addElementChain(selectedElementType, cells);
   };
 
   const onCellClick = (c: CellId) => {
@@ -205,9 +259,10 @@ export default function EditorPage() {
                   className={`mk-suspect-pill ${selectedElementType === entry.type ? 'active' : ''}`}
                   style={{ background: '#495057' }}
                   onClick={() => setSelectedElementType(entry.type)}
-                  title={entry.label}
+                  title={isMultiCellType(entry) ? `${entry.label} (multi-cella: trascina in linea)` : entry.label}
                 >
                   {entry.icon} {entry.label}
+                  {isMultiCellType(entry) && ' 🔗'}
                 </span>
               ))}
               {puzzle.customElementTypes.map((entry) => (
@@ -216,11 +271,17 @@ export default function EditorPage() {
                   className={`mk-suspect-pill ${selectedElementType === entry.id ? 'active' : ''}`}
                   style={{ background: '#495057' }}
                   onClick={() => setSelectedElementType(entry.id)}
-                  title={entry.occupiable ? entry.name : `${entry.name} (non occupabile)`}
+                  title={[
+                    entry.occupiable ? entry.name : `${entry.name} (non occupabile)`,
+                    isMultiCellType(entry) ? 'multi-cella: trascina in linea' : '',
+                  ]
+                    .filter(Boolean)
+                    .join(' — ')}
                 >
                   <img src={entry.image} alt="" style={{ width: 16, height: 16, objectFit: 'contain' }} />{' '}
                   {entry.name}
                   {!entry.occupiable && ' 🚫'}
+                  {isMultiCellType(entry) && ' 🔗'}
                   <span
                     onClick={(e) => {
                       e.stopPropagation();
@@ -258,9 +319,17 @@ export default function EditorPage() {
           editableWalls={tool === 'walls'}
           onEdgeClick={onEdgeClick}
           onCellClick={onCellClick}
+          elementDragMode={tool === 'elements' && selectedElementIsMultiCell}
+          onElementDragComplete={onElementDragComplete}
           windows={puzzle.windows}
           onWindowClick={onWindowClick}
           editableWindows={tool === 'walls'}
+          areaLabels={areas.areaIds
+            .map((areaId) => {
+              const text = areaCustomName(areaId, puzzle.areaNames, areas);
+              return text ? { ...areaBottomLabelAnchor(areas.areaCells[areaId]), text } : null;
+            })
+            .filter((l): l is NonNullable<typeof l> => l !== null)}
           cellClassName={(c) => {
             if (tool === 'suspects' && isExcludedCell(c)) return 'locked';
             if (puzzle.victim.solutionCellId === c) return 'victim';
@@ -269,29 +338,22 @@ export default function EditorPage() {
           renderCell={(c) => {
             const el = elementAt(c);
             const elEntry = el ? resolveElementType(el.type, puzzle.customElementTypes) : undefined;
+            const visual = el && elEntry ? resolveElementVisual(elEntry, elementConnections(el, puzzle.elements)) : undefined;
             const sus = suspectAt(c);
             const isVictimHere = puzzle.victim.solutionCellId === c;
-            const areaId = areas.cellArea[c];
-            const areaName = areaCustomName(areaId, puzzle.areaNames, areas);
-            const name = areaName && areaCentroidCell(areas.areaCells[areaId]) === c ? areaName : undefined;
             return (
               <>
-                {name && <span className="mk-area-name">{name}</span>}
-                {elEntry && (
-                  <span className="mk-element-icon" title={elEntry.label}>
-                    {elEntry.image ? <img src={elEntry.image} alt="" /> : elEntry.icon}
+                {elEntry && visual && (
+                  <span
+                    className={`mk-element-icon ${isMultiCellType(elEntry) ? 'mk-element-icon-full' : ''}`}
+                    title={elEntry.label}
+                    style={visual.rotationDeg ? { transform: `rotate(${visual.rotationDeg}deg)` } : undefined}
+                  >
+                    {visual.image ? <img src={visual.image} alt="" /> : visual.icon}
                   </span>
                 )}
-                {sus && (
-                  <span className="mk-confirmed" style={{ background: sus.color }}>
-                    {sus.name[0]?.toUpperCase()}
-                  </span>
-                )}
-                {isVictimHere && !sus && (
-                  <span className="mk-victim-badge" title="Vittima">
-                    V
-                  </span>
-                )}
+                {sus && <SuspectMarker color={sus.color} letter={sus.name[0]?.toUpperCase() ?? ''} />}
+                {isVictimHere && !sus && <SuspectMarker color={puzzle.victim.color} letter="V" dashed title="Vittima" />}
               </>
             );
           }}
@@ -299,8 +361,10 @@ export default function EditorPage() {
         <p style={{ textAlign: 'center', fontSize: '0.85rem', color: '#666' }}>
           {tool === 'walls' &&
             "Trascina tra le celle per i muri, sul bordo esterno per le finestre. Clicca una cella per attivarla/disattivarla (griglie non rettangolari). Dai un nome alle aree nell'elenco qui sotto."}
-          {tool === 'elements' &&
+          {tool === 'elements' && !selectedElementIsMultiCell &&
             'Scegli un oggetto sopra, poi clicca una cella per piazzarlo (clicca di nuovo lo stesso oggetto per rimuoverlo).'}
+          {tool === 'elements' && selectedElementIsMultiCell &&
+            'Oggetto multi-cella 🔗: trascina lungo le celle (anche ad angolo) per piazzarlo su più celle collegate. Clicca una cella isolata per piazzarlo da solo, oppure una cella adiacente a un pezzo già presente dello stesso oggetto per agganciarla (utile per creare incroci a T o a croce).'}
           {tool === 'suspects' &&
             'Seleziona un sospettato (o la vittima V) sopra, poi clicca la cella soluzione. Le celle in grigio sono bloccate da riga/colonna già occupate.'}
         </p>
