@@ -48,23 +48,25 @@
   cursor: not-allowed;
 }
 
-.mk-cell.locked::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  margin: auto;
-  width: 55%;
-  height: 55%;
+/*
+ * Marker della cella esclusa: elemento a parte (non annidato in .mk-cell), sullo stesso modello
+ * di .mk-spanning-image/.mk-area-name. Necessario perché un discendente con z-index proprio non
+ * può mai superare un fratello di .mk-cell (es. l'overlay ad impronta fissa) se .mk-cell stesso
+ * non ha uno z-index esplicito: qui .mk-cell resta senza, quindi il marker deve stare fuori.
+ */
+.mk-locked-mark {
+  position: relative;
+  z-index: 4;
+  pointer-events: none;
   background-color: rgba(0, 0, 0, 0.4);
   -webkit-mask-image: var(--icon-croce);
   mask-image: var(--icon-croce);
-  -webkit-mask-size: contain;
-  mask-size: contain;
+  -webkit-mask-size: 55% 55%;
+  mask-size: 55% 55%;
   -webkit-mask-repeat: no-repeat;
   mask-repeat: no-repeat;
   -webkit-mask-position: center;
   mask-position: center;
-  pointer-events: none;
 }
 
 .mk-cell.conflict {

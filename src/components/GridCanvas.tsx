@@ -236,11 +236,12 @@ export function GridCanvas({
       const id = cellId(r, c);
       const isDisabled = disabledSet.has(id);
       const bg = isDisabled ? undefined : areaColor(areaIndex.get(areas.cellArea[id]) ?? 0);
+      const extraClassName = cellClassName?.(id) ?? '';
       cells.push(
         <div
           key={id}
           data-cell-id={id}
-          className={`mk-cell ${isDisabled ? 'mk-cell-disabled' : ''} ${cellClassName?.(id) ?? ''} ${pressingCell === id ? 'pressing' : ''} ${elementDragPath.includes(id) ? 'mk-cell-drag-path' : ''}`}
+          className={`mk-cell ${isDisabled ? 'mk-cell-disabled' : ''} ${extraClassName} ${pressingCell === id ? 'pressing' : ''} ${elementDragPath.includes(id) ? 'mk-cell-drag-path' : ''}`}
           style={{ gridRow: 2 * r + 2, gridColumn: 2 * c + 2, background: bg, ...(isDisabled ? undefined : cellStyle?.(id)) }}
           onPointerDown={handleCellPointerDown(id)}
           onPointerUp={handleCellPointerUp(id)}
@@ -249,6 +250,14 @@ export function GridCanvas({
           {!isDisabled && renderCell?.(id)}
         </div>,
       );
+
+      if (!isDisabled && extraClassName.split(' ').includes('locked')) {
+        // Elemento a parte (non annidato in .mk-cell): un discendente non può mai stare sopra un
+        // elemento "sopraelevato" con z-index proprio (es. gli overlay ad impronta fissa) se il
+        // suo genitore diretto (.mk-cell) non ha a sua volta uno z-index esplicito, quindi il
+        // marker della cella esclusa va disegnato come cella indipendente con z-index proprio.
+        cells.push(<div key={`${id}-locked`} className="mk-locked-mark" style={{ gridRow: 2 * r + 2, gridColumn: 2 * c + 2 }} />);
+      }
 
       if (c < width - 1) {
         const rightId = cellId(r, c + 1);
