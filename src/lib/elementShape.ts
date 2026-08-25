@@ -1,4 +1,4 @@
-import { cellId, parseCellId, type Direction, type MapElement, type ResolvedElementType } from '../types/puzzle';
+import { cellId, parseCellId, type CellId, type Direction, type MapElement, type ResolvedElementType } from '../types/puzzle';
 
 const NEIGHBOR_DELTAS: Record<Direction, [number, number]> = {
   N: [-1, 0],
@@ -26,6 +26,87 @@ export interface ElementVisual {
   image?: string;
   icon?: string;
   rotationDeg: number;
+}
+
+/**
+ * Per una cella ad angolo (esattamente due collegamenti adiacenti, non opposti), controlla se la
+ * cella diagonale "dentro" l'angolo fa anch'essa parte dello stesso oggetto: in tal caso l'angolo
+ * va disegnato "pieno" (variante filledCornerImage, es. tappeto_22) invece che "cavo"
+ * (cornerImage, es. tappeto_2) — es. un blocco 2x2 di tappeto usa tappeto_22 su tutte e quattro
+ * le celle, perché ognuna ha la diagonale opposta occupata dallo stesso tappeto.
+ */
+export function isCornerDiagonalFilled(element: MapElement, elements: MapElement[], connections: Direction[]): boolean {
+  const set = new Set(connections);
+  if (set.size !== 2) return false;
+  const isStraight = (set.has('N') && set.has('S')) || (set.has('E') && set.has('O'));
+  if (isStraight) return false;
+  if (!element.groupId) return false;
+
+  const dr = set.has('S') ? 1 : set.has('N') ? -1 : 0;
+  const dc = set.has('E') ? 1 : set.has('O') ? -1 : 0;
+  const { row, col } = parseCellId(element.cellId);
+  const diagonalId = cellId(row + dr, col + dc);
+  return elements.some((e) => e.cellId === diagonalId && e.groupId === element.groupId && e.type === element.type);
+}
+
+export interface FixedFootprintGroup {
+  groupId: string;
+  type: string;
+  anchorRow: number;
+  anchorCol: number;
+  widthCells: number;
+  heightCells: number;
+  image: string;
+  cellIds: CellId[];
+}
+
+/**
+ * Raggruppa gli elementi ad "impronta fissa" (es. il letto) per groupId+type, e per ogni gruppo
+ * che forma un rettangolo pieno WxH con un'immagine dichiarata per quella taglia, restituisce
+ * l'overlay unico da disegnare al posto delle icone per-cella. Gruppi che non formano un
+ * rettangolo pieno (celle mancanti) o senza immagine per quella taglia vengono scartati.
+ */
+export function fixedFootprintGroups(
+  elements: MapElement[],
+  resolveType: (type: string) => ResolvedElementType | undefined,
+): FixedFootprintGroup[] {
+  const groups = new Map<string, MapElement[]>();
+  for (const el of elements) {
+    if (!el.groupId) continue;
+    const entry = resolveType(el.type);
+    if (!entry?.fixedFootprintImages) continue;
+    const key = `${el.groupId}::${el.type}`;
+    const bucket = groups.get(key);
+    if (bucket) bucket.push(el);
+    else groups.set(key, [el]);
+  }
+
+  const result: FixedFootprintGroup[] = [];
+  for (const els of groups.values()) {
+    const entry = resolveType(els[0].type);
+    if (!entry?.fixedFootprintImages) continue;
+    const positions = els.map((e) => parseCellId(e.cellId));
+    const rowMin = Math.min(...positions.map((p) => p.row));
+    const rowMax = Math.max(...positions.map((p) => p.row));
+    const colMin = Math.min(...positions.map((p) => p.col));
+    const colMax = Math.max(...positions.map((p) => p.col));
+    const widthCells = colMax - colMin + 1;
+    const heightCells = rowMax - rowMin + 1;
+    if (els.length !== widthCells * heightCells) continue;
+    const image = entry.fixedFootprintImages[`${widthCells}x${heightCells}`];
+    if (!image) continue;
+    result.push({
+      groupId: els[0].groupId as string,
+      type: els[0].type,
+      anchorRow: rowMin,
+      anchorCol: colMin,
+      widthCells,
+      heightCells,
+      image,
+      cellIds: els.map((e) => e.cellId),
+    });
+  }
+  return result;
 }
 
 const CONNECTION_KEY_ORDER: Direction[] = ['N', 'E', 'S', 'O'];
@@ -73,7 +154,11 @@ const BASE_T: Direction[] = ['N', 'E', 'O'];
  * multi-cella. Con connessioni non generabili trascinando/collegando (nessuna variante adatta
  * caricata) ricade sulla variante isolata.
  */
-export function resolveElementVisual(entry: ResolvedElementType, connections: Direction[]): ElementVisual {
+export function resolveElementVisual(
+  entry: ResolvedElementType,
+  connections: Direction[],
+  diagonalFilled = false,
+): ElementVisual {
   const set = new Set(connections);
   const isolated: ElementVisual = { image: entry.image, icon: entry.icon, rotationDeg: 0 };
   if (set.size === 0) return isolated;
@@ -100,9 +185,10 @@ export function resolveElementVisual(entry: ResolvedElementType, connections: Di
       const steps = findRotationSteps(BASE_STRAIGHT, set);
       if (steps !== null) return { image: entry.straightImage, icon: entry.icon, rotationDeg: steps * 90 };
     }
-    if (entry.cornerImage) {
+    const cornerImage = (diagonalFilled && entry.filledCornerImage) || entry.cornerImage;
+    if (cornerImage) {
       const steps = findRotationSteps(BASE_CORNER, set);
-      if (steps !== null) return { image: entry.cornerImage, icon: entry.icon, rotationDeg: steps * 90 };
+      if (steps !== null) return { image: cornerImage, icon: entry.icon, rotationDeg: steps * 90 };
     }
     return isolated;
   }

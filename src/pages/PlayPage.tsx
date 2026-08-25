@@ -8,7 +8,7 @@ import { loadPuzzle } from '../storage/puzzleStorage';
 import { areaBottomLabelAnchor, computeAreas } from '../lib/grid';
 import { describeClue } from '../lib/describeClue';
 import { areaCustomName, areaDisplayName } from '../lib/areaLabel';
-import { elementConnections, resolveElementVisual } from '../lib/elementShape';
+import { elementConnections, fixedFootprintGroups, isCornerDiagonalFilled, resolveElementVisual } from '../lib/elementShape';
 import { isMultiCellType, parseCellId, resolveElementType, type CellId, type Puzzle } from '../types/puzzle';
 
 /** Chiave riservata usata per la vittima nelle mappe confirmed/candidates, come un sospettato in più. */
@@ -57,6 +57,11 @@ export default function PlayPage() {
   }, [id, load]);
 
   const areas = useMemo(() => (puzzle ? computeAreas(puzzle) : null), [puzzle]);
+  const footprintGroups = useMemo(
+    () => (puzzle ? fixedFootprintGroups(puzzle.elements, (type) => resolveElementType(type, puzzle.customElementTypes)) : []),
+    [puzzle],
+  );
+  const footprintCoveredCells = useMemo(() => new Set(footprintGroups.flatMap((g) => g.cellIds)), [footprintGroups]);
 
   if (!puzzle || !areas || puzzleId !== id) return <p>Caricamento...</p>;
 
@@ -253,12 +258,15 @@ export default function PlayPage() {
               return text ? { ...areaBottomLabelAnchor(areas.areaCells[areaId]), text } : null;
             })
             .filter((l): l is NonNullable<typeof l> => l !== null)}
+          spanningImages={footprintGroups}
           onCellClick={onCellTap}
           onCellLongPress={onCellLongPress}
           renderCell={(c) => {
-            const el = puzzle.elements.find((e) => e.cellId === c);
+            const el = footprintCoveredCells.has(c) ? undefined : puzzle.elements.find((e) => e.cellId === c);
             const elEntry = el ? resolveElementType(el.type, puzzle.customElementTypes) : undefined;
-            const visual = el && elEntry ? resolveElementVisual(elEntry, elementConnections(el, puzzle.elements)) : undefined;
+            const connections = el ? elementConnections(el, puzzle.elements) : [];
+            const diagonalFilled = el ? isCornerDiagonalFilled(el, puzzle.elements, connections) : false;
+            const visual = el && elEntry ? resolveElementVisual(elEntry, connections, diagonalFilled) : undefined;
             const confirmedSuspect = puzzle.suspects.find((s) => confirmed[s.id] === c);
             const victimConfirmedHere = !confirmedSuspect && confirmed[VICTIM_ID] === c;
             const candidateIds = playState.candidates[c] ?? [];

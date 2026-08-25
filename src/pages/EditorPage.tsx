@@ -10,10 +10,11 @@ import { areaBottomLabelAnchor, areaCentroidCell, computeAreas, isWallBetween } 
 import { areaLabel, areaDisplayName, areaCustomName } from '../lib/areaLabel';
 import { describeClue } from '../lib/describeClue';
 import { downloadPuzzleAsFile } from '../storage/puzzleStorage';
-import { elementConnections, resolveElementVisual } from '../lib/elementShape';
+import { elementConnections, fixedFootprintGroups, isCornerDiagonalFilled, resolveElementVisual } from '../lib/elementShape';
 import {
   cellId,
   ELEMENT_CATALOG,
+  isFixedFootprintType,
   isMultiCellType,
   parseCellId,
   resolveElementType,
@@ -86,6 +87,16 @@ export default function EditorPage() {
 
   const selectedElementEntry = resolveElementType(selectedElementType, puzzle.customElementTypes);
   const selectedElementIsMultiCell = isMultiCellType(selectedElementEntry);
+  const selectedElementIsFixedFootprint = isFixedFootprintType(selectedElementEntry);
+
+  // Oggetti ad impronta fissa (es. letto): un'unica immagine copre l'intero gruppo di celle, al
+  // posto dell'icona per-cella. `footprintCoveredCells` elenca le celle già coperte da un overlay,
+  // così il rendering per-cella normale può saltarle (mentre sospettati/candidati restano normali).
+  // (Niente useMemo: siamo dopo il return anticipato sopra, quindi gli hook non possono stare qui.)
+  const footprintGroups = fixedFootprintGroups(puzzle.elements, (type) =>
+    resolveElementType(type, puzzle.customElementTypes),
+  );
+  const footprintCoveredCells = new Set(footprintGroups.flatMap((g) => g.cellIds));
 
   // Cella adiacente (N/S/E/O) con un elemento dello stesso tipo, se presente: usata per collegare
   // un click singolo ad un oggetto multi-cella già piazzato (permette di formare incroci a T/croce).
@@ -114,13 +125,29 @@ export default function EditorPage() {
         return;
       }
       if (existing) removeElement(existing.id);
-      const anchor = selectedElementIsMultiCell ? adjacentSameTypeElement(c, selectedElementType) : undefined;
+      // Gli oggetti ad impronta fissa (letto) non si agganciano per formare incroci: una singola
+      // cella piazza sempre un pezzo isolato con l'immagine 1x1 di fallback.
+      const anchor =
+        selectedElementIsMultiCell && !selectedElementIsFixedFootprint
+          ? adjacentSameTypeElement(c, selectedElementType)
+          : undefined;
       if (anchor) {
         addElementToGroup(selectedElementType, c, anchor.cellId);
       } else {
         addElement({ type: selectedElementType, cellId: c });
       }
       return;
+    }
+    if (selectedElementIsFixedFootprint) {
+      // Un oggetto ad impronta fissa va trascinato in linea retta, per una lunghezza che
+      // corrisponda ad una delle taglie WxH dichiarate (es. "2x1"): niente angoli/T/croce.
+      const positions = cells.map(parseCellId);
+      const sameRow = positions.every((p) => p.row === positions[0].row);
+      const sameCol = positions.every((p) => p.col === positions[0].col);
+      if (!sameRow && !sameCol) return;
+      const width = sameRow ? cells.length : 1;
+      const height = sameCol ? cells.length : 1;
+      if (!selectedElementEntry?.fixedFootprintImages?.[`${width}x${height}`]) return;
     }
     for (const c of cells) {
       const existing = elementAt(c);
@@ -351,6 +378,7 @@ export default function EditorPage() {
           windows={puzzle.windows}
           onWindowClick={onWindowClick}
           editableWindows={tool === 'walls' && wallSubTool === 'windows'}
+          spanningImages={footprintGroups}
           areaLabels={areas.areaIds
             .map((areaId) => {
               const text = areaCustomName(areaId, puzzle.areaNames, areas);
@@ -363,9 +391,11 @@ export default function EditorPage() {
             return undefined;
           }}
           renderCell={(c) => {
-            const el = elementAt(c);
+            const el = footprintCoveredCells.has(c) ? undefined : elementAt(c);
             const elEntry = el ? resolveElementType(el.type, puzzle.customElementTypes) : undefined;
-            const visual = el && elEntry ? resolveElementVisual(elEntry, elementConnections(el, puzzle.elements)) : undefined;
+            const connections = el ? elementConnections(el, puzzle.elements) : [];
+            const diagonalFilled = el ? isCornerDiagonalFilled(el, puzzle.elements, connections) : false;
+            const visual = el && elEntry ? resolveElementVisual(elEntry, connections, diagonalFilled) : undefined;
             const sus = suspectAt(c);
             const isVictimHere = puzzle.victim.solutionCellId === c;
             return (
@@ -394,8 +424,10 @@ export default function EditorPage() {
             'Clicca il bordo esterno del perimetro per segnare o togliere una finestra.'}
           {tool === 'elements' && !selectedElementIsMultiCell &&
             'Scegli un oggetto sopra, poi clicca una cella per piazzarlo (clicca di nuovo lo stesso oggetto per rimuoverlo).'}
-          {tool === 'elements' && selectedElementIsMultiCell &&
+          {tool === 'elements' && selectedElementIsMultiCell && !selectedElementIsFixedFootprint &&
             'Oggetto multi-cella 🔗: trascina lungo le celle (anche ad angolo) per piazzarlo su più celle collegate. Clicca una cella isolata per piazzarlo da solo, oppure una cella adiacente a un pezzo già presente dello stesso oggetto per agganciarla (utile per creare incroci a T o a croce).'}
+          {tool === 'elements' && selectedElementIsFixedFootprint &&
+            'Oggetto ad impronta fissa 🔗: trascina in linea retta per il numero di celle corrispondente a una taglia disponibile (es. 2 celle in orizzontale o in verticale) per piazzarlo con una singola immagine. Clicca una cella isolata per piazzarlo da solo.'}
           {tool === 'suspects' &&
             'Seleziona un sospettato (o la vittima V) sopra, poi clicca la cella soluzione. Le celle in grigio sono bloccate da riga/colonna già occupate.'}
         </p>

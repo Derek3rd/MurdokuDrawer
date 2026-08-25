@@ -126,6 +126,20 @@
   background: #74c0fc;
 }
 
+.mk-spanning-image {
+  position: relative;
+  z-index: 1;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.mk-spanning-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+
 .mk-area-name {
   align-self: end;
   justify-self: center;

@@ -13,6 +13,8 @@ import iconCespuglio from '../assets/icons/cespuglio.svg';
 import iconCestino from '../assets/icons/cestino.svg';
 import iconCono from '../assets/icons/cono.svg';
 import iconLetto from '../assets/icons/letto.svg';
+import iconLettoE from '../assets/icons/letto_e.svg';
+import iconLettoS from '../assets/icons/letto_s.svg';
 import iconLibreria from '../assets/icons/libreria.svg';
 import iconMacerie from '../assets/icons/macerie.svg';
 import iconPianta from '../assets/icons/pianta.svg';
@@ -22,6 +24,7 @@ import iconSedia from '../assets/icons/sedia.svg';
 import iconStatua from '../assets/icons/statua.svg';
 import iconTappeto1 from '../assets/icons/tappeto_1.svg';
 import iconTappeto2 from '../assets/icons/tappeto_2.svg';
+import iconTappeto22 from '../assets/icons/tappeto_22.svg';
 import iconTappeto3 from '../assets/icons/tappeto_3.svg';
 import iconTappeto4 from '../assets/icons/tappeto_4.svg';
 import iconTappeto6 from '../assets/icons/tappeto_6.svg';
@@ -61,8 +64,10 @@ export type Direction = 'N' | 'S' | 'E' | 'O';
  * piazzato trascinando su più celle (anche ad angolo, o collegando celle aggiuntive per creare
  * incroci a T/croce), ogni cella mostra la variante giusta in base a quante e quali celle
  * adiacenti dello stesso oggetto tocca, ruotata di conseguenza (vedi elementShape.ts). Codici
- * (per riferimento nei nomi file): 0=isolata, 1=capImage, 2=cornerImage, 3=tImage, 4=crossImage,
- * 6=straightImage.
+ * (per riferimento nei nomi file): 0=isolata, 1=capImage, 2=cornerImage, 22=filledCornerImage,
+ * 3=tImage, 4=crossImage, 6=straightImage.
+ * Un tipo con `fixedFootprintImages` è invece un oggetto "a impronta fissa": una sola immagine
+ * copre l'intero rettangolo WxH (es. un letto 2x1), senza varianti per cella né rotazione CSS.
  */
 interface ElementCatalogEntry {
   type: string;
@@ -75,6 +80,12 @@ interface ElementCatalogEntry {
    * collega Nord+Est, straightImage collega Nord+Sud, tImage collega Nord+Est+Ovest). */
   capImage?: string;
   cornerImage?: string;
+  /**
+   * Variante "piena" dell'angolo, usata al posto di `cornerImage` quando anche la cella diagonale
+   * interna all'angolo fa parte dello stesso oggetto (es. tappeto_22 per un blocco 2x2 di tappeto).
+   * Se assente, si usa sempre `cornerImage`.
+   */
+  filledCornerImage?: string;
   straightImage?: string;
   /** Incrocio a T (tre collegamenti). */
   tImage?: string;
@@ -93,6 +104,13 @@ interface ElementCatalogEntry {
    * elementShape.ts, es. "N", "NE", "NS", "NESO"). Controllata prima di capImage/cornerImage/ecc.
    */
   shapesByConnections?: Partial<Record<string, string>>;
+  /**
+   * Oggetto ad "impronta fissa": una sola immagine per l'intero rettangolo WxH occupato (es. un
+   * letto 2x1), indicizzata dalla chiave "WxH" in celle (es. "2x1", "1x2"). Piazzato trascinando
+   * in linea retta per un numero di celle che corrisponde a una delle taglie dichiarate: niente
+   * angoli, T o incroci. L'immagine copre l'intero gruppo di celle come overlay unico, non ruota.
+   */
+  fixedFootprintImages?: Partial<Record<string, string>>;
 }
 
 export const ELEMENT_CATALOG: ElementCatalogEntry[] = [
@@ -104,6 +122,7 @@ export const ELEMENT_CATALOG: ElementCatalogEntry[] = [
     occupiable: true,
     capImage: iconTappeto1,
     cornerImage: iconTappeto2,
+    filledCornerImage: iconTappeto22,
     tImage: iconTappeto3,
     crossImage: iconTappeto4,
     straightImage: iconTappeto6,
@@ -137,7 +156,14 @@ export const ELEMENT_CATALOG: ElementCatalogEntry[] = [
   { type: 'cone', icon: '🔺', image: iconCono, label: 'Cono', occupiable: false },
   { type: 'statue', icon: '🗿', image: iconStatua, label: 'Statua', occupiable: false },
   { type: 'log', icon: '🪵', image: iconTronco, label: 'Tronco', occupiable: false },
-  { type: 'bed', icon: '🛏️', image: iconLetto, label: 'Letto', occupiable: true },
+  {
+    type: 'bed',
+    icon: '🛏️',
+    image: iconLetto,
+    label: 'Letto',
+    occupiable: true,
+    fixedFootprintImages: { '2x1': iconLettoE, '1x2': iconLettoS },
+  },
   { type: 'basket', icon: '🗑️', image: iconCestino, label: 'Cestino', occupiable: false },
   { type: 'box', icon: '📦', image: iconScatola, label: 'Scatola', occupiable: false },
   { type: 'rubble', icon: '🧱', image: iconMacerie, label: 'Macerie', occupiable: false },
@@ -160,11 +186,13 @@ export interface CustomElementType {
   /** Presenti solo sui tipi multi-cella (vedi ElementCatalogEntry per le convenzioni). */
   capImage?: string;
   cornerImage?: string;
+  filledCornerImage?: string;
   straightImage?: string;
   tImage?: string;
   crossImage?: string;
   capImageByDirection?: Partial<Record<Direction, string>>;
   shapesByConnections?: Partial<Record<string, string>>;
+  fixedFootprintImages?: Partial<Record<string, string>>;
 }
 
 export interface ResolvedElementType {
@@ -174,11 +202,13 @@ export interface ResolvedElementType {
   image?: string;
   capImage?: string;
   cornerImage?: string;
+  filledCornerImage?: string;
   straightImage?: string;
   tImage?: string;
   crossImage?: string;
   capImageByDirection?: Partial<Record<Direction, string>>;
   shapesByConnections?: Partial<Record<string, string>>;
+  fixedFootprintImages?: Partial<Record<string, string>>;
 }
 
 /** Risolve un tipo di oggetto (catalogo fisso o personalizzato del puzzle) nella sua definizione. */
@@ -193,18 +223,32 @@ export function resolveElementType(type: string, customTypes: CustomElementType[
     image: custom.image,
     capImage: custom.capImage,
     cornerImage: custom.cornerImage,
+    filledCornerImage: custom.filledCornerImage,
     straightImage: custom.straightImage,
     tImage: custom.tImage,
     crossImage: custom.crossImage,
     capImageByDirection: custom.capImageByDirection,
+    fixedFootprintImages: custom.fixedFootprintImages,
   };
 }
 
-/** Un tipo è multi-cella se ha almeno una variante "estremità" (piazzabile trascinando/collegando celle). */
+/** Un tipo è multi-cella se ha almeno una variante "estremità" (piazzabile trascinando/collegando celle)
+ * oppure un'immagine ad impronta fissa (piazzato in linea retta, con un'unica immagine per l'intero gruppo). */
 export function isMultiCellType(
-  entry: Pick<ResolvedElementType, 'capImage' | 'capImageByDirection' | 'shapesByConnections'> | undefined,
+  entry:
+    | Pick<ResolvedElementType, 'capImage' | 'capImageByDirection' | 'shapesByConnections' | 'fixedFootprintImages'>
+    | undefined,
 ): boolean {
-  return !!entry?.capImage || !!entry?.capImageByDirection || !!entry?.shapesByConnections;
+  return (
+    !!entry?.capImage || !!entry?.capImageByDirection || !!entry?.shapesByConnections || !!entry?.fixedFootprintImages
+  );
+}
+
+/** True se l'oggetto è ad "impronta fissa" (immagine unica per l'intero rettangolo WxH, niente rotazione/varianti per cella). */
+export function isFixedFootprintType(
+  entry: Pick<ResolvedElementType, 'fixedFootprintImages'> | undefined,
+): boolean {
+  return !!entry?.fixedFootprintImages;
 }
 
 export interface MapElement {

@@ -44,6 +44,8 @@ interface GridCanvasProps {
   editableWindows?: boolean;
   /** Etichette dei nomi delle aree, piazzate fuori dalle celle appena sotto la zona (vedi areaBottomLabelAnchor). */
   areaLabels?: { row: number; colMin: number; colMax: number; text: string }[];
+  /** Overlay a immagine unica per oggetti ad "impronta fissa" (es. letto), estesi su più celle (vedi fixedFootprintGroups). */
+  spanningImages?: { groupId: string; anchorRow: number; anchorCol: number; widthCells: number; heightCells: number; image: string }[];
 }
 
 function edgeFromElement(el: Element | null): Edge | null {
@@ -82,6 +84,7 @@ export function GridCanvas({
   onWindowClick,
   editableWindows = false,
   areaLabels = [],
+  spanningImages = [],
 }: GridCanvasProps) {
   const { width, height } = puzzle;
   const areas = computeAreas(puzzle);
@@ -295,6 +298,24 @@ export function GridCanvas({
         if (c === width - 1) cells.push(windowEdge(id, 'E', 2 * r + 2, 2 * width + 1));
       }
     }
+  }
+
+  // Overlay a immagine unica per oggetti ad impronta fissa (es. letto): elementi a parte (non
+  // annidati in una .mk-cell), per poter coprire più celle in un solo elemento. z-index esplicito
+  // per stare sopra lo sfondo colorato delle celle ma sotto i marker dei sospettati (z-index:2).
+  for (const span of spanningImages) {
+    cells.push(
+      <div
+        key={`span-${span.groupId}`}
+        className="mk-spanning-image"
+        style={{
+          gridRow: `${2 * span.anchorRow + 2} / ${2 * span.anchorRow + 2 + 2 * span.heightCells - 1}`,
+          gridColumn: `${2 * span.anchorCol + 2} / ${2 * span.anchorCol + 2 + 2 * span.widthCells - 1}`,
+        }}
+      >
+        <img src={span.image} alt="" />
+      </div>,
+    );
   }
 
   // Etichette dei nomi delle aree: elementi a parte (non annidati in una .mk-cell), così non
