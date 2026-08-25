@@ -1,5 +1,5 @@
-import { useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
-import { cellId, type CellId, type Direction, type WindowEdge } from '../types/puzzle';
+import { useEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
+import { cellId, parseCellId, type CellId, type Direction, type WindowEdge } from '../types/puzzle';
 import { computeAreas, isWallBetween } from '../lib/grid';
 import type { Puzzle } from '../types/puzzle';
 import iconCroce from '../assets/ui/croce.svg';
@@ -100,6 +100,24 @@ export function GridCanvas({
   const elementDragRef = useRef<{ active: boolean; path: CellId[]; cursor: CellId } | null>(null);
   const [elementDragPath, setElementDragPath] = useState<CellId[]>([]);
 
+  // Dimensione delle celle in px, calcolata (non "1fr"+aspect-ratio sul contenitore) così restano
+  // sempre quadrate anche con griglie non quadrate (larghezza celle diversa dall'altezza celle):
+  // il budget disponibile viene diviso per il lato più stretto tra i due, in modo da rispettare
+  // sia la larghezza che l'altezza massime disponibili in viewport.
+  const [viewport, setViewport] = useState(() => ({ w: window.innerWidth, h: window.innerHeight }));
+  useEffect(() => {
+    const onResize = () => setViewport({ w: window.innerWidth, h: window.innerHeight });
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+  const maxWidthPx = Math.min(viewport.w * 0.9, 640);
+  const maxHeightPx = viewport.h * 0.65;
+  const gapTotalW = 2 * PERI_GAP + (width - 1) * GAP;
+  const gapTotalH = 2 * PERI_GAP + (height - 1) * GAP;
+  const cellSize = Math.max(16, Math.min((maxWidthPx - gapTotalW) / width, (maxHeightPx - gapTotalH) / height));
+  const containerWidthPx = cellSize * width + gapTotalW;
+  const containerHeightPx = cellSize * height + gapTotalH;
+
   const paintEdge = (edge: Edge) => {
     const key = `${edge.side}:${edge.cell}`;
     if (dragRef.current?.visited.has(key)) return;
@@ -107,9 +125,46 @@ export function GridCanvas({
     onEdgeClick?.(edge);
   };
 
+  // Trova il muro più vicino al punto puntato: se il punto cade esattamente sulla fascia
+  // sottile di un .mk-edge la usa direttamente, altrimenti (il caso più comune, dato che i muri
+  // sono spessi solo pochi px) trova la cella più vicina e sceglie il suo lato più vicino al
+  // punto. Così trascinare per disegnare muri dritti non richiede più di restare esattamente
+  // sulla fascia cliccabile: basta restare "abbastanza vicini" a dove passerebbe il muro.
+  const resolveEdgeNear = (clientX: number, clientY: number): Edge | null => {
+    const el = document.elementFromPoint(clientX, clientY);
+    const direct = edgeFromElement(el);
+    if (direct) return direct;
+    const cellEl = el?.closest('[data-cell-id]');
+    if (!(cellEl instanceof HTMLElement)) return null;
+    const cid = cellEl.dataset.cellId;
+    if (!cid || disabledSet.has(cid)) return null;
+    const rect = cellEl.getBoundingClientRect();
+    const dx = clientX - rect.left;
+    const dy = clientY - rect.top;
+    const distances = { right: rect.width - dx, left: dx, bottom: rect.height - dy, top: dy };
+    const nearest = (Object.keys(distances) as (keyof typeof distances)[]).reduce((a, b) =>
+      distances[a] <= distances[b] ? a : b,
+    );
+    const { row, col } = parseCellId(cid);
+    if (nearest === 'right') {
+      if (col === width - 1 || disabledSet.has(cellId(row, col + 1))) return null;
+      return { side: 'right', cell: cid };
+    }
+    if (nearest === 'bottom') {
+      if (row === height - 1 || disabledSet.has(cellId(row + 1, col))) return null;
+      return { side: 'bottom', cell: cid };
+    }
+    if (nearest === 'left') {
+      if (col === 0 || disabledSet.has(cellId(row, col - 1))) return null;
+      return { side: 'right', cell: cellId(row, col - 1) };
+    }
+    if (row === 0 || disabledSet.has(cellId(row - 1, col))) return null;
+    return { side: 'bottom', cell: cellId(row - 1, col) };
+  };
+
   const handlePointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
     if (!editableWalls) return;
-    const edge = edgeFromElement(e.target as Element);
+    const edge = resolveEdgeNear(e.clientX, e.clientY);
     if (!edge) return;
     e.preventDefault();
     dragRef.current = { active: true, visited: new Set() };
@@ -119,7 +174,7 @@ export function GridCanvas({
   const handlePointerMove = (e: ReactPointerEvent<HTMLDivElement>) => {
     if (dragRef.current?.active) {
       e.preventDefault();
-      const edge = edgeFromElement(document.elementFromPoint(e.clientX, e.clientY));
+      const edge = resolveEdgeNear(e.clientX, e.clientY);
       if (edge) paintEdge(edge);
       return;
     }
@@ -209,12 +264,12 @@ export function GridCanvas({
 
   const colTemplate = [
     `${PERI_GAP}px`,
-    ...Array.from({ length: 2 * width - 1 }, (_, i) => (i % 2 === 0 ? '1fr' : `${GAP}px`)),
+    ...Array.from({ length: 2 * width - 1 }, (_, i) => (i % 2 === 0 ? `${cellSize}px` : `${GAP}px`)),
     `${PERI_GAP}px`,
   ].join(' ');
   const rowTemplate = [
     `${PERI_GAP}px`,
-    ...Array.from({ length: 2 * height - 1 }, (_, i) => (i % 2 === 0 ? '1fr' : `${GAP}px`)),
+    ...Array.from({ length: 2 * height - 1 }, (_, i) => (i % 2 === 0 ? `${cellSize}px` : `${GAP}px`)),
     `${PERI_GAP}px`,
   ].join(' ');
 
@@ -354,6 +409,8 @@ export function GridCanvas({
         {
           gridTemplateColumns: colTemplate,
           gridTemplateRows: rowTemplate,
+          width: containerWidthPx,
+          height: containerHeightPx,
           '--icon-croce': `url("${iconCroce}")`,
         } as CSSProperties
       }

@@ -1,7 +1,8 @@
 .mk-grid {
+  /* Larghezza/altezza impostate inline da GridCanvas.tsx (celle sempre quadrate, anche con
+     larghezza e altezza della griglia diverse: il budget di spazio disponibile viene diviso
+     per il lato più stretto tra viewport-larghezza e viewport-altezza). */
   display: grid;
-  width: min(90vw, 640px);
-  aspect-ratio: 1 / 1;
   margin: 0 auto;
   background: #cfcfcf;
   padding: 4px;
