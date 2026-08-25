@@ -27,6 +27,9 @@ interface EditorState {
   toggleWindow: (cellId: string, side: Direction) => void;
   toggleCellDisabled: (cellId: string) => void;
   addElement: (element: { type: string; cellId: string }) => void;
+  /** Piazza un oggetto multi-cella su più celle collegate (trascinamento nell'editor); una sola
+   * cella si comporta come addElement (nessun groupId, variante "isolata"). */
+  addElementChain: (type: string, cellIds: string[]) => void;
   removeElement: (id: string) => void;
   addCustomElementType: (entry: Omit<CustomElementType, 'id'>) => string;
   removeCustomElementType: (id: string) => void;
@@ -168,6 +171,19 @@ export const useEditorStore = create<EditorState>((set) => ({
         elements: [...s.puzzle.elements, { ...element, id: crypto.randomUUID() }],
       }),
     })),
+
+  addElementChain: (type, cellIds) =>
+    set((s) => {
+      if (cellIds.length === 0) return s;
+      const groupId = cellIds.length > 1 ? crypto.randomUUID() : undefined;
+      const newElements = cellIds.map((cid) => ({
+        id: crypto.randomUUID(),
+        type,
+        cellId: cid,
+        ...(groupId ? { groupId } : {}),
+      }));
+      return { puzzle: persist({ ...s.puzzle, elements: [...s.puzzle.elements, ...newElements] }) };
+    }),
 
   removeElement: (id) =>
     set((s) => ({

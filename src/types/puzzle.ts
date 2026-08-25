@@ -34,8 +34,25 @@ export function parseCellId(id: CellId): { row: number; col: number } {
 
 export type Direction = 'N' | 'S' | 'E' | 'O';
 
-/** Catalogo fisso degli oggetti piazzabili sulla mappa: icona/immagine, nome ed occupabilità. */
-export const ELEMENT_CATALOG = [
+/**
+ * Catalogo fisso degli oggetti piazzabili sulla mappa: icona/immagine, nome ed occupabilità.
+ * Un tipo con `capImage`/`cornerImage`/`straightImage` è multi-cella: piazzato trascinando su
+ * più celle in linea, ogni cella mostra la variante giusta (isolata/estremità/angolo/dritto)
+ * ruotata in base a come si collega alle celle adiacenti dello stesso oggetto (vedi elementShape.ts).
+ */
+interface ElementCatalogEntry {
+  type: string;
+  icon: string;
+  image?: string;
+  label: string;
+  occupiable: boolean;
+  /** Presenti solo sui tipi multi-cella, per le celle con una/due connessioni allo stesso oggetto. */
+  capImage?: string;
+  cornerImage?: string;
+  straightImage?: string;
+}
+
+export const ELEMENT_CATALOG: ElementCatalogEntry[] = [
   { type: 'chair', icon: '🪑', image: iconSedia, label: 'Sedia', occupiable: true },
   { type: 'rug', icon: '🟫', label: 'Tappeto', occupiable: true },
   { type: 'table', icon: '🍽️', image: iconTavolo, label: 'Tavolo', occupiable: false },
@@ -50,7 +67,7 @@ export const ELEMENT_CATALOG = [
   { type: 'statue', icon: '🗿', image: iconStatua, label: 'Statua', occupiable: false },
   { type: 'log', icon: '🪵', image: iconTronco, label: 'Tronco', occupiable: false },
   { type: 'bed', icon: '🛏️', image: iconLetto, label: 'Letto', occupiable: true },
-] as const;
+];
 
 export type ElementType = (typeof ELEMENT_CATALOG)[number]['type'];
 
@@ -62,10 +79,14 @@ export function elementCatalogEntry(type: string) {
 export interface CustomElementType {
   id: string;
   name: string;
-  /** Data URI (immagine caricata) oppure URL diretto ad un'immagine */
+  /** Data URI (immagine caricata) oppure URL diretto ad un'immagine. Usata anche come variante "isolata". */
   image: string;
   /** Se false, nessun sospettato può avere la sua cella soluzione su questo oggetto */
   occupiable: boolean;
+  /** Presenti solo sui tipi multi-cella, per le celle con una/due connessioni allo stesso oggetto. */
+  capImage?: string;
+  cornerImage?: string;
+  straightImage?: string;
 }
 
 export interface ResolvedElementType {
@@ -73,6 +94,9 @@ export interface ResolvedElementType {
   occupiable: boolean;
   icon?: string;
   image?: string;
+  capImage?: string;
+  cornerImage?: string;
+  straightImage?: string;
 }
 
 /** Risolve un tipo di oggetto (catalogo fisso o personalizzato del puzzle) nella sua definizione. */
@@ -81,7 +105,19 @@ export function resolveElementType(type: string, customTypes: CustomElementType[
   if (builtin) return builtin;
   const custom = customTypes.find((c) => c.id === type);
   if (!custom) return undefined;
-  return { label: custom.name, occupiable: custom.occupiable, image: custom.image };
+  return {
+    label: custom.name,
+    occupiable: custom.occupiable,
+    image: custom.image,
+    capImage: custom.capImage,
+    cornerImage: custom.cornerImage,
+    straightImage: custom.straightImage,
+  };
+}
+
+/** Un tipo è multi-cella se ha almeno la variante "estremità" (piazzabile trascinando in linea). */
+export function isMultiCellType(entry: Pick<ResolvedElementType, 'capImage'> | undefined): boolean {
+  return !!entry?.capImage;
 }
 
 export interface MapElement {
@@ -89,6 +125,12 @@ export interface MapElement {
   /** Tipo di oggetto: chiave in ELEMENT_CATALOG oppure id di un CustomElementType del puzzle */
   type: string;
   cellId: CellId;
+  /**
+   * Presente solo per oggetti multi-cella: id condiviso da tutte le celle dello stesso oggetto
+   * piazzato trascinando in linea. Celle con lo stesso groupId e adiacenti si "collegano"
+   * visivamente (vedi lib/elementShape.ts); assente per un piazzamento a cella singola.
+   */
+  groupId?: string;
 }
 
 /** Nome personalizzato assegnato ad un'area, ancorato ad una sua cella. */

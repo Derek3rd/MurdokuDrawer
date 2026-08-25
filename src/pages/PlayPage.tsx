@@ -6,6 +6,7 @@ import { loadPuzzle } from '../storage/puzzleStorage';
 import { areaCentroidCell, computeAreas } from '../lib/grid';
 import { describeClue } from '../lib/describeClue';
 import { areaCustomName, areaDisplayName } from '../lib/areaLabel';
+import { elementConnections, resolveElementVisual } from '../lib/elementShape';
 import { parseCellId, resolveElementType, type CellId, type Puzzle } from '../types/puzzle';
 
 /** Chiave riservata usata per la vittima nelle mappe confirmed/candidates, come un sospettato in più. */
@@ -215,6 +216,7 @@ export default function PlayPage() {
           renderCell={(c) => {
             const el = puzzle.elements.find((e) => e.cellId === c);
             const elEntry = el ? resolveElementType(el.type, puzzle.customElementTypes) : undefined;
+            const visual = el && elEntry ? resolveElementVisual(elEntry, elementConnections(el, puzzle.elements)) : undefined;
             const confirmedSuspect = puzzle.suspects.find((s) => confirmed[s.id] === c);
             const victimConfirmedHere = !confirmedSuspect && confirmed[VICTIM_ID] === c;
             const candidateIds = playState.candidates[c] ?? [];
@@ -224,9 +226,13 @@ export default function PlayPage() {
             return (
               <>
                 {name && <span className="mk-area-name">{name}</span>}
-                {elEntry && (
-                  <span className="mk-element-icon" title={elEntry.label}>
-                    {elEntry.image ? <img src={elEntry.image} alt="" /> : elEntry.icon}
+                {elEntry && visual && (
+                  <span
+                    className="mk-element-icon"
+                    title={elEntry.label}
+                    style={visual.rotationDeg ? { transform: `rotate(${visual.rotationDeg}deg)` } : undefined}
+                  >
+                    {visual.image ? <img src={visual.image} alt="" /> : visual.icon}
                   </span>
                 )}
                 {confirmedSuspect && (
