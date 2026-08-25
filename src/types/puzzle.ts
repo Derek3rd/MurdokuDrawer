@@ -7,64 +7,6 @@
 // Le aree della mappa sono regioni di celle contigue delimitate da muri.
 // La vittima occupa sempre l'ultima cella libera nell'area del killer.
 
-import iconAlbero from '../assets/icons/albero.svg';
-import iconCassa from '../assets/icons/cassa.svg';
-import iconCespuglio from '../assets/icons/cespuglio.svg';
-import iconCestino from '../assets/icons/cestino.svg';
-import iconCono from '../assets/icons/cono.svg';
-import iconLibreria from '../assets/icons/libreria.svg';
-import iconMacerie from '../assets/icons/macerie.svg';
-import iconPianta from '../assets/icons/pianta.svg';
-import iconRoccia from '../assets/icons/roccia.svg';
-import iconScatola from '../assets/icons/scatola.svg';
-import iconSedia from '../assets/icons/sedia.svg';
-import iconStatua from '../assets/icons/statua.svg';
-import iconTappeto1 from '../assets/icons/tappeto_1.svg';
-import iconTappeto2 from '../assets/icons/tappeto_2.svg';
-import iconTappeto22 from '../assets/icons/tappeto_22.svg';
-import iconTappeto3 from '../assets/icons/tappeto_3.svg';
-import iconTappeto4 from '../assets/icons/tappeto_4.svg';
-import iconTappeto6 from '../assets/icons/tappeto_6.svg';
-import iconTavolo from '../assets/icons/tavolo.svg';
-import iconTavoloE from '../assets/icons/tavolo_e.svg';
-import iconTavoloEs from '../assets/icons/tavolo_es.svg';
-import iconTavoloEw from '../assets/icons/tavolo_ew.svg';
-import iconTavoloN from '../assets/icons/tavolo_n.svg';
-import iconTavoloNe from '../assets/icons/tavolo_ne.svg';
-import iconTavoloNs from '../assets/icons/tavolo_ns.svg';
-import iconTavoloNw from '../assets/icons/tavolo_nw.svg';
-import iconTavoloS from '../assets/icons/tavolo_s.svg';
-import iconTavoloSw from '../assets/icons/tavolo_sw.svg';
-import iconTavoloW from '../assets/icons/tavolo_w.svg';
-import iconTronco from '../assets/icons/tronco.svg';
-import iconTv from '../assets/icons/tv.svg';
-
-/**
- * Icone per oggetti ad "impronta fissa" (una sola immagine per l'intero rettangolo WxH occupato,
- * es. letto_2x1.svg): raccolte automaticamente per convenzione di nome file "base_WxHformato.svg"
- * (es. "auto_2x1.svg", "autobus_3x1.svg", "elefante_2x2.svg"). Aggiungere una nuova taglia (o un
- * nuovo oggetto ad impronta fissa) richiede solo di piazzare il file con il nome giusto in
- * assets/icons e richiamare `footprintImagesFor('base')` nel catalogo qui sotto, senza dover
- * importare/elencare ogni immagine a mano.
- */
-const FOOTPRINT_ICON_MODULES = import.meta.glob<string>('../assets/icons/*.svg', {
-  eager: true,
-  import: 'default',
-});
-const FOOTPRINT_SIZE_RE = /^(.+)_(\d+)x(\d+)\.svg$/;
-
-function footprintImagesFor(baseName: string): Partial<Record<string, string>> {
-  const images: Partial<Record<string, string>> = {};
-  for (const path in FOOTPRINT_ICON_MODULES) {
-    const fileName = path.split('/').pop() ?? '';
-    const match = fileName.match(FOOTPRINT_SIZE_RE);
-    if (match && match[1] === baseName) {
-      images[`${match[2]}x${match[3]}`] = FOOTPRINT_ICON_MODULES[path];
-    }
-  }
-  return images;
-}
-
 /** Omit che si distribuisce sui membri di un tipo unione discriminata. */
 export type DistributiveOmit<T, K extends keyof T> = T extends unknown ? Omit<T, K> : never;
 
@@ -94,6 +36,8 @@ export type Direction = 'N' | 'S' | 'E' | 'O';
  */
 interface ElementCatalogEntry {
   type: string;
+  /** Sottocartella di origine in assets/icons/ (es. "casa"), usata per raggruppare gli oggetti nell'editor. */
+  category: string;
   icon: string;
   image?: string;
   label: string;
@@ -136,81 +80,143 @@ interface ElementCatalogEntry {
   fixedFootprintImages?: Partial<Record<string, string>>;
 }
 
-export const ELEMENT_CATALOG: ElementCatalogEntry[] = [
-  { type: 'chair', icon: '🪑', image: iconSedia, label: 'Sedia', occupiable: true },
-  {
-    type: 'rug',
-    icon: '🟫',
-    label: 'Tappeto',
-    occupiable: true,
-    capImage: iconTappeto1,
-    cornerImage: iconTappeto2,
-    filledCornerImage: iconTappeto22,
-    tImage: iconTappeto3,
-    crossImage: iconTappeto4,
-    straightImage: iconTappeto6,
-  },
-  {
-    type: 'table',
-    icon: '🍽️',
-    image: iconTavolo,
-    label: 'Tavolo',
-    occupiable: false,
-    shapesByConnections: {
-      N: iconTavoloN,
-      S: iconTavoloS,
-      E: iconTavoloE,
-      O: iconTavoloW,
-      NS: iconTavoloNs,
-      EO: iconTavoloEw,
-      NE: iconTavoloNe,
-      ES: iconTavoloEs,
-      SO: iconTavoloSw,
-      NO: iconTavoloNw,
-    },
-  },
-  { type: 'bush', icon: '🌿', image: iconCespuglio, label: 'Cespuglio', occupiable: true },
-  { type: 'tree', icon: '🌳', image: iconAlbero, label: 'Albero', occupiable: false },
-  { type: 'rock', icon: '🪨', image: iconRoccia, label: 'Roccia', occupiable: true },
-  { type: 'plant', icon: '🪴', image: iconPianta, label: 'Pianta in vaso', occupiable: false },
-  { type: 'bookshelf', icon: '📚', image: iconLibreria, label: 'Libreria', occupiable: false },
-  { type: 'tv', icon: '📺', image: iconTv, label: 'TV', occupiable: false },
-  { type: 'crate', icon: '🛢️', image: iconCassa, label: 'Cassa/Barile', occupiable: true },
-  { type: 'cone', icon: '🔺', image: iconCono, label: 'Cono', occupiable: false },
-  { type: 'statue', icon: '🗿', image: iconStatua, label: 'Statua', occupiable: false },
-  { type: 'log', icon: '🪵', image: iconTronco, label: 'Tronco', occupiable: false },
-  {
-    type: 'bed',
-    icon: '🛏️',
-    label: 'Letto',
-    occupiable: true,
-    fixedFootprintImages: footprintImagesFor('letto'),
-  },
-  { type: 'basket', icon: '🗑️', image: iconCestino, label: 'Cestino', occupiable: false },
-  { type: 'box', icon: '📦', image: iconScatola, label: 'Scatola', occupiable: false },
-  { type: 'rubble', icon: '🧱', image: iconMacerie, label: 'Macerie', occupiable: false },
-  {
-    type: 'car',
-    icon: '🚗',
-    label: 'Auto',
-    occupiable: false,
-    fixedFootprintImages: footprintImagesFor('auto'),
-  },
-  {
-    type: 'bus',
-    icon: '🚌',
-    label: 'Autobus',
-    occupiable: false,
-    fixedFootprintImages: footprintImagesFor('autobus'),
-  },
-  {
-    type: 'elephant',
-    icon: '🐘',
-    label: 'Elefante',
-    occupiable: false,
-    fixedFootprintImages: footprintImagesFor('elefante'),
-  },
-];
+// --- Catalogo generato automaticamente da assets/icons/<categoria>/<nome file> ---
+//
+// Convenzione dei nomi file: "<base>[_<variante>][_o].svg", dentro una sottocartella di
+// categoria (es. assets/icons/casa/sedia.svg). <base> è l'identificativo dell'oggetto (diventa
+// anche il suo `type`); <variante>, se presente, è una delle seguenti (mutuamente esclusive per
+// oggetto):
+//   - "WxH" (es. "2x1")     -> oggetto ad impronta fissa, immagine unica per quella taglia
+//   - "1"/"2"/"22"/"3"/"4"/"6" -> variante a rotazione CSS (cap/corner/filledCorner/T/cross/straight,
+//                                 vedi elementShape.ts), immagine unica ruotata via CSS
+//   - lettere tra n/e/s/w (es. "ne", "ew")  -> variante già orientata per quella combinazione di
+//                                 collegamenti (N/E/S/O, "w" = ovest), nessuna rotazione CSS
+// "_o" finale (prima di ".svg", su una qualsiasi variante) marca l'oggetto come occupabile da un
+// sospettato; senza "_o" su nessun file, l'oggetto è considerato non occupabile (default).
+// Aggiungere un nuovo oggetto, una nuova taglia/variante o cambiare l'occupabilità richiede solo
+// di aggiungere/rinominare il file giusto: nessuna modifica al codice.
+const ICON_MODULES = import.meta.glob<string>('../assets/icons/*/*.svg', { eager: true, import: 'default' });
+
+const NUMERIC_SHAPE_FIELDS: Record<string, keyof ElementCatalogEntry> = {
+  '1': 'capImage',
+  '2': 'cornerImage',
+  '22': 'filledCornerImage',
+  '3': 'tImage',
+  '4': 'crossImage',
+  '6': 'straightImage',
+};
+
+const CONNECTION_KEY_ORDER: Direction[] = ['N', 'E', 'S', 'O'];
+
+function directionalConnectionKey(letters: string): string | null {
+  const dirs: Direction[] = [];
+  for (const ch of letters) {
+    if (ch === 'n') dirs.push('N');
+    else if (ch === 'e') dirs.push('E');
+    else if (ch === 's') dirs.push('S');
+    else if (ch === 'w') dirs.push('O');
+    else return null;
+  }
+  const set = new Set(dirs);
+  if (set.size !== dirs.length) return null; // lettera ripetuta: nome non valido, ignorato
+  return CONNECTION_KEY_ORDER.filter((d) => set.has(d)).join('');
+}
+
+interface AutoCatalogEntry extends Omit<ElementCatalogEntry, 'icon' | 'label'> {
+  hasOccupiableMark: boolean;
+}
+
+function buildAutoCatalog(): Map<string, AutoCatalogEntry> {
+  const entries = new Map<string, AutoCatalogEntry>();
+  for (const path in ICON_MODULES) {
+    const match = path.match(/\/icons\/([^/]+)\/([^/]+)\.svg$/);
+    if (!match) continue;
+    const [, category, fileName] = match;
+    const segments = fileName.split('_');
+    const hasOccupiableMark = segments.length > 1 && segments[segments.length - 1] === 'o';
+    if (hasOccupiableMark) segments.pop();
+    const base = segments[0];
+    const variant = segments.length > 1 ? segments.slice(1).join('_') : null;
+
+    let entry = entries.get(base);
+    if (!entry) {
+      entry = { type: base, category, occupiable: false, hasOccupiableMark: false };
+      entries.set(base, entry);
+    } else if (entry.category !== category) {
+      console.warn(`Oggetto "${base}" presente in più categorie (${entry.category} e ${category}): ignorata la seconda.`);
+      continue;
+    }
+    if (hasOccupiableMark) entry.hasOccupiableMark = true;
+
+    const url = ICON_MODULES[path];
+    if (!variant || variant === '0') {
+      // "0" = isolata per convenzione esplicita nel nome file (utile per gli oggetti a
+      // connettori come il tappeto, che non hanno un file base senza suffisso).
+      entry.image = url;
+      continue;
+    }
+    const footprintMatch = variant.match(/^(\d+)x(\d+)$/);
+    if (footprintMatch) {
+      entry.fixedFootprintImages = { ...entry.fixedFootprintImages, [`${footprintMatch[1]}x${footprintMatch[2]}`]: url };
+      continue;
+    }
+    const shapeField = NUMERIC_SHAPE_FIELDS[variant];
+    if (shapeField) {
+      (entry as unknown as Record<string, unknown>)[shapeField] = url;
+      continue;
+    }
+    if (/^[nesw]+$/.test(variant)) {
+      const key = directionalConnectionKey(variant);
+      if (key) entry.shapesByConnections = { ...entry.shapesByConnections, [key]: url };
+      continue;
+    }
+    console.warn(`File "${fileName}.svg" in ${category}/: variante "${variant}" non riconosciuta, ignorata.`);
+  }
+  for (const entry of entries.values()) entry.occupiable = entry.hasOccupiableMark;
+  return entries;
+}
+
+/** Etichetta leggibile di default per un oggetto, capitalizzando il nome file. */
+function defaultLabel(base: string): string {
+  return base.charAt(0).toUpperCase() + base.slice(1);
+}
+
+/**
+ * Le emoji non si possono dedurre dal nome file: piccola tabella di riferimento (con etichetta
+ * personalizzata dove serve) per gli oggetti noti, con un'emoji generica di riserva per quelli
+ * nuovi finché non viene aggiunta qui una voce dedicata.
+ */
+const ICON_OVERRIDES: Partial<Record<string, { icon: string; label?: string }>> = {
+  sedia: { icon: '🪑' },
+  tappeto: { icon: '🟫' },
+  tavolo: { icon: '🍽️' },
+  cespuglio: { icon: '🌿' },
+  albero: { icon: '🌳' },
+  roccia: { icon: '🪨' },
+  pianta: { icon: '🪴', label: 'Pianta in vaso' },
+  libreria: { icon: '📚' },
+  tv: { icon: '📺' },
+  cassa: { icon: '🛢️', label: 'Cassa/Barile' },
+  cono: { icon: '🔺' },
+  statua: { icon: '🗿' },
+  tronco: { icon: '🪵' },
+  letto: { icon: '🛏️' },
+  cestino: { icon: '🗑️' },
+  scatola: { icon: '📦' },
+  macerie: { icon: '🧱' },
+  auto: { icon: '🚗' },
+  autobus: { icon: '🚌' },
+  elefante: { icon: '🐘' },
+};
+const DEFAULT_ICON = '🔷';
+
+export const ELEMENT_CATALOG: ElementCatalogEntry[] = [...buildAutoCatalog().values()].map(
+  ({ hasOccupiableMark: _hasOccupiableMark, ...entry }) => ({
+    ...entry,
+    icon: ICON_OVERRIDES[entry.type]?.icon ?? DEFAULT_ICON,
+    label: ICON_OVERRIDES[entry.type]?.label ?? defaultLabel(entry.type),
+  }),
+);
 
 export type ElementType = (typeof ELEMENT_CATALOG)[number]['type'];
 
@@ -241,6 +247,8 @@ export interface CustomElementType {
 export interface ResolvedElementType {
   label: string;
   occupiable: boolean;
+  /** Assente per gli oggetti personalizzati del puzzle (non hanno una categoria di provenienza). */
+  category?: string;
   icon?: string;
   image?: string;
   capImage?: string;
@@ -276,8 +284,8 @@ export function resolveElementType(type: string, customTypes: CustomElementType[
 }
 
 /** True se l'oggetto è ad "impronta fissa" (immagine unica per l'intero rettangolo WxH, niente rotazione/varianti
- * per cella) e ha almeno una taglia con l'immagine disponibile (le taglie sono raccolte automaticamente da
- * `footprintImagesFor`, quindi un oggetto dichiarato ma senza ancora nessun file "base_WxH.svg" caricato non
+ * per cella) e ha almeno una taglia con l'immagine disponibile (le taglie sono raccolte automaticamente dal nome
+ * file "base_WxH.svg" in buildAutoCatalog, quindi un oggetto senza ancora nessun file di quel tipo caricato non
  * conta come multi-cella finché quel file non viene aggiunto). */
 export function isFixedFootprintType(
   entry: Pick<ResolvedElementType, 'fixedFootprintImages'> | undefined,

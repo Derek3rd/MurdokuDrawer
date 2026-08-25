@@ -10,7 +10,7 @@ interface PlayStoreState {
   history: PlayState[];
   load: (puzzleId: string) => void;
   toggleCandidate: (cellId: string, suspectId: string) => void;
-  /** Svuota tutte le posizioni probabili (candidati di qualsiasi sospettato) segnate su una cella. */
+  /** Svuota tutte le posizioni probabili (candidati) e la X manuale eventualmente segnate su una cella. */
   clearCellCandidates: (cellId: string) => void;
   /** Segna/toglie manualmente una cella come "non può essere occupata", a prescindere dal sospettato. */
   toggleManualMark: (cellId: string) => void;
@@ -51,10 +51,15 @@ export const usePlayStore = create<PlayStoreState>((set) => ({
 
   clearCellCandidates: (cellId) =>
     set((s) => {
-      if (!s.playState.candidates[cellId]) return {};
+      const hasCandidates = !!s.playState.candidates[cellId];
+      const hasManualMark = s.playState.manualMarks.includes(cellId);
+      if (!hasCandidates && !hasManualMark) return {};
       const candidates = { ...s.playState.candidates };
       delete candidates[cellId];
-      return applyChange(s, { ...s.playState, candidates });
+      const manualMarks = hasManualMark
+        ? s.playState.manualMarks.filter((c) => c !== cellId)
+        : s.playState.manualMarks;
+      return applyChange(s, { ...s.playState, candidates, manualMarks });
     }),
 
   toggleManualMark: (cellId) =>

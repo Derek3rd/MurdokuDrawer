@@ -1,4 +1,4 @@
-import suspectIcon from '../assets/icons/sospettato.svg';
+import suspectIcon from '../assets/ui/sospettato.svg';
 
 interface SuspectMarkerProps {
   color: string;
