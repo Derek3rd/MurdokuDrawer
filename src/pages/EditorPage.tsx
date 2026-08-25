@@ -6,14 +6,15 @@ import CustomElementForm from '../components/CustomElementForm';
 import SuspectMarker from '../components/SuspectMarker';
 import { useEditorStore } from '../store/useEditorStore';
 import { areaColor } from '../components/GridCanvas';
-import { areaBottomLabelAnchor, areaCentroidCell, computeAreas } from '../lib/grid';
+import { areaBottomLabelAnchor, areaCentroidCell, computeAreas, isWallBetween } from '../lib/grid';
 import { areaLabel, areaDisplayName, areaCustomName } from '../lib/areaLabel';
 import { describeClue } from '../lib/describeClue';
 import { downloadPuzzleAsFile } from '../storage/puzzleStorage';
-import { elementConnections, resolveElementVisual } from '../lib/elementShape';
+import { elementConnections, fixedFootprintGroups, isCornerDiagonalFilled, resolveElementVisual } from '../lib/elementShape';
 import {
   cellId,
   ELEMENT_CATALOG,
+  isFixedFootprintType,
   isMultiCellType,
   parseCellId,
   resolveElementType,
@@ -22,6 +23,8 @@ import {
 } from '../types/puzzle';
 
 type Tool = 'walls' | 'elements' | 'suspects';
+/** Sotto-azione dello strumento "Muri / Aree": solo una alla volta per evitare clic accidentali. */
+type WallSubTool = 'walls' | 'cells' | 'windows';
 
 /** Chiave riservata usata per selezionare/piazzare la vittima nello strumento "Sospettati". */
 const VICTIM_ID = 'victim';
@@ -40,6 +43,7 @@ export default function EditorPage() {
   }, [id, loadPuzzleById]);
 
   const [tool, setTool] = useState<Tool>('walls');
+  const [wallSubTool, setWallSubTool] = useState<WallSubTool>('walls');
   const [selectedSuspectId, setSelectedSuspectId] = useState<string | null>(puzzle.suspects[0]?.id ?? null);
   const [selectedElementType, setSelectedElementType] = useState<string>(ELEMENT_CATALOG[0].type);
   const [showCustomElementForm, setShowCustomElementForm] = useState(false);
@@ -83,6 +87,16 @@ export default function EditorPage() {
 
   const selectedElementEntry = resolveElementType(selectedElementType, puzzle.customElementTypes);
   const selectedElementIsMultiCell = isMultiCellType(selectedElementEntry);
+  const selectedElementIsFixedFootprint = isFixedFootprintType(selectedElementEntry);
+
+  // Oggetti ad impronta fissa (es. letto): un'unica immagine copre l'intero gruppo di celle, al
+  // posto dell'icona per-cella. `footprintCoveredCells` elenca le celle già coperte da un overlay,
+  // così il rendering per-cella normale può saltarle (mentre sospettati/candidati restano normali).
+  // (Niente useMemo: siamo dopo il return anticipato sopra, quindi gli hook non possono stare qui.)
+  const footprintGroups = fixedFootprintGroups(puzzle.elements, (type) =>
+    resolveElementType(type, puzzle.customElementTypes),
+  );
+  const footprintCoveredCells = new Set(footprintGroups.flatMap((g) => g.cellIds));
 
   // Cella adiacente (N/S/E/O) con un elemento dello stesso tipo, se presente: usata per collegare
   // un click singolo ad un oggetto multi-cella già piazzato (permette di formare incroci a T/croce).
@@ -90,6 +104,7 @@ export default function EditorPage() {
     const { row, col } = parseCellId(c);
     const neighborIds = [cellId(row - 1, col), cellId(row + 1, col), cellId(row, col - 1), cellId(row, col + 1)];
     for (const n of neighborIds) {
+      if (isWallBetween(c, n, puzzle.wallsRight, puzzle.wallsBottom)) continue;
       const el = puzzle.elements.find((e) => e.cellId === n && e.type === type);
       if (el) return el;
     }
@@ -110,13 +125,29 @@ export default function EditorPage() {
         return;
       }
       if (existing) removeElement(existing.id);
-      const anchor = selectedElementIsMultiCell ? adjacentSameTypeElement(c, selectedElementType) : undefined;
+      // Gli oggetti ad impronta fissa (letto) non si agganciano per formare incroci: una singola
+      // cella piazza sempre un pezzo isolato con l'immagine 1x1 di fallback.
+      const anchor =
+        selectedElementIsMultiCell && !selectedElementIsFixedFootprint
+          ? adjacentSameTypeElement(c, selectedElementType)
+          : undefined;
       if (anchor) {
         addElementToGroup(selectedElementType, c, anchor.cellId);
       } else {
         addElement({ type: selectedElementType, cellId: c });
       }
       return;
+    }
+    if (selectedElementIsFixedFootprint) {
+      // Un oggetto ad impronta fissa va trascinato in linea retta, per una lunghezza che
+      // corrisponda ad una delle taglie WxH dichiarate (es. "2x1"): niente angoli/T/croce.
+      const positions = cells.map(parseCellId);
+      const sameRow = positions.every((p) => p.row === positions[0].row);
+      const sameCol = positions.every((p) => p.col === positions[0].col);
+      if (!sameRow && !sameCol) return;
+      const width = sameRow ? cells.length : 1;
+      const height = sameCol ? cells.length : 1;
+      if (!selectedElementEntry?.fixedFootprintImages?.[`${width}x${height}`]) return;
     }
     for (const c of cells) {
       const existing = elementAt(c);
@@ -127,7 +158,7 @@ export default function EditorPage() {
 
   const onCellClick = (c: CellId) => {
     if (tool === 'walls') {
-      toggleCellDisabled(c);
+      if (wallSubTool === 'cells') toggleCellDisabled(c);
     } else if (puzzle.disabledCells.includes(c)) {
       return; // cella disattivata: non fa parte della mappa
     } else if (tool === 'elements') {
@@ -166,13 +197,13 @@ export default function EditorPage() {
   };
 
   const onEdgeClick = ({ side, cell }: { side: 'right' | 'bottom'; cell: CellId }) => {
-    if (tool !== 'walls') return;
+    if (tool !== 'walls' || wallSubTool !== 'walls') return;
     if (side === 'right') toggleWallRight(cell);
     else toggleWallBottom(cell);
   };
 
   const onWindowClick = ({ cellId, side }: { cellId: CellId; side: Direction }) => {
-    if (tool !== 'walls') return;
+    if (tool !== 'walls' || wallSubTool !== 'windows') return;
     toggleWindow(cellId, side);
   };
 
@@ -227,6 +258,29 @@ export default function EditorPage() {
             🕵️ Sospettati
           </button>
         </div>
+
+        {tool === 'walls' && (
+          <div className="mk-row" style={{ marginBottom: '0.5rem' }}>
+            <button
+              className={`mk-btn ${wallSubTool === 'walls' ? '' : 'secondary'}`}
+              onClick={() => setWallSubTool('walls')}
+            >
+              🧱 Disegna muri
+            </button>
+            <button
+              className={`mk-btn ${wallSubTool === 'cells' ? '' : 'secondary'}`}
+              onClick={() => setWallSubTool('cells')}
+            >
+              ⬛ Attiva/disattiva celle
+            </button>
+            <button
+              className={`mk-btn ${wallSubTool === 'windows' ? '' : 'secondary'}`}
+              onClick={() => setWallSubTool('windows')}
+            >
+              🪟 Finestre
+            </button>
+          </div>
+        )}
 
         {tool === 'suspects' && (
           <div className="mk-row" style={{ marginBottom: '0.5rem' }}>
@@ -316,14 +370,15 @@ export default function EditorPage() {
 
         <GridCanvas
           puzzle={puzzle}
-          editableWalls={tool === 'walls'}
+          editableWalls={tool === 'walls' && wallSubTool === 'walls'}
           onEdgeClick={onEdgeClick}
           onCellClick={onCellClick}
           elementDragMode={tool === 'elements' && selectedElementIsMultiCell}
           onElementDragComplete={onElementDragComplete}
           windows={puzzle.windows}
           onWindowClick={onWindowClick}
-          editableWindows={tool === 'walls'}
+          editableWindows={tool === 'walls' && wallSubTool === 'windows'}
+          spanningImages={footprintGroups}
           areaLabels={areas.areaIds
             .map((areaId) => {
               const text = areaCustomName(areaId, puzzle.areaNames, areas);
@@ -336,9 +391,11 @@ export default function EditorPage() {
             return undefined;
           }}
           renderCell={(c) => {
-            const el = elementAt(c);
+            const el = footprintCoveredCells.has(c) ? undefined : elementAt(c);
             const elEntry = el ? resolveElementType(el.type, puzzle.customElementTypes) : undefined;
-            const visual = el && elEntry ? resolveElementVisual(elEntry, elementConnections(el, puzzle.elements)) : undefined;
+            const connections = el ? elementConnections(el, puzzle.elements) : [];
+            const diagonalFilled = el ? isCornerDiagonalFilled(el, puzzle.elements, connections) : false;
+            const visual = el && elEntry ? resolveElementVisual(elEntry, connections, diagonalFilled) : undefined;
             const sus = suspectAt(c);
             const isVictimHere = puzzle.victim.solutionCellId === c;
             return (
@@ -359,12 +416,18 @@ export default function EditorPage() {
           }}
         />
         <p style={{ textAlign: 'center', fontSize: '0.85rem', color: '#666' }}>
-          {tool === 'walls' &&
-            "Trascina tra le celle per i muri, sul bordo esterno per le finestre. Clicca una cella per attivarla/disattivarla (griglie non rettangolari). Dai un nome alle aree nell'elenco qui sotto."}
+          {tool === 'walls' && wallSubTool === 'walls' &&
+            "Trascina tra le celle per disegnare o cancellare i muri interni. Dai un nome alle aree nell'elenco qui sotto."}
+          {tool === 'walls' && wallSubTool === 'cells' &&
+            'Clicca una cella per attivarla o disattivarla (per creare griglie non rettangolari).'}
+          {tool === 'walls' && wallSubTool === 'windows' &&
+            'Clicca il bordo esterno del perimetro per segnare o togliere una finestra.'}
           {tool === 'elements' && !selectedElementIsMultiCell &&
             'Scegli un oggetto sopra, poi clicca una cella per piazzarlo (clicca di nuovo lo stesso oggetto per rimuoverlo).'}
-          {tool === 'elements' && selectedElementIsMultiCell &&
-            'Oggetto multi-cella 🔗: trascina lungo le celle (anche ad angolo) per piazzarlo su più celle collegate. Clicca una cella isolata per piazzarlo da solo, oppure una cella adiacente a un pezzo già presente dello stesso oggetto per agganciarla (utile per creare incroci a T o a croce).'}
+          {tool === 'elements' && selectedElementIsMultiCell && !selectedElementIsFixedFootprint &&
+            'Oggetto multi-cella 🔗: trascina lungo le celle (anche ad angolo) per piazzarlo su più celle collegate. Per un incrocio a T o a croce, senza sollevare il dito torna indietro su una cella già toccata del percorso e riparti in un\'altra direzione. Clicca una cella isolata per piazzarlo da solo, oppure una cella adiacente a un pezzo già presente dello stesso oggetto per agganciarla.'}
+          {tool === 'elements' && selectedElementIsFixedFootprint &&
+            'Oggetto ad impronta fissa 🔗: trascina in linea retta per il numero di celle corrispondente a una taglia disponibile (es. 2 celle in orizzontale o in verticale) per piazzarlo con una singola immagine. Clicca una cella isolata per piazzarlo da solo.'}
           {tool === 'suspects' &&
             'Seleziona un sospettato (o la vittima V) sopra, poi clicca la cella soluzione. Le celle in grigio sono bloccate da riga/colonna già occupate.'}
         </p>

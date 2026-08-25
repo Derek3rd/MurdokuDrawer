@@ -1,7 +1,8 @@
 import { useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
 import { cellId, type CellId, type Direction, type WindowEdge } from '../types/puzzle';
-import { computeAreas } from '../lib/grid';
+import { computeAreas, isWallBetween } from '../lib/grid';
 import type { Puzzle } from '../types/puzzle';
+import iconCroce from '../assets/ui/croce.svg';
 import './GridCanvas.css';
 
 const GAP = 4; // px, spessore della fascia cliccabile/trascinabile per i muri interni
@@ -44,6 +45,8 @@ interface GridCanvasProps {
   editableWindows?: boolean;
   /** Etichette dei nomi delle aree, piazzate fuori dalle celle appena sotto la zona (vedi areaBottomLabelAnchor). */
   areaLabels?: { row: number; colMin: number; colMax: number; text: string }[];
+  /** Overlay a immagine unica per oggetti ad "impronta fissa" (es. letto), estesi su più celle (vedi fixedFootprintGroups). */
+  spanningImages?: { groupId: string; anchorRow: number; anchorCol: number; widthCells: number; heightCells: number; image: string }[];
 }
 
 function edgeFromElement(el: Element | null): Edge | null {
@@ -82,6 +85,7 @@ export function GridCanvas({
   onWindowClick,
   editableWindows = false,
   areaLabels = [],
+  spanningImages = [],
 }: GridCanvasProps) {
   const { width, height } = puzzle;
   const areas = computeAreas(puzzle);
@@ -93,7 +97,7 @@ export function GridCanvas({
     null,
   );
   const [pressingCell, setPressingCell] = useState<CellId | null>(null);
-  const elementDragRef = useRef<{ active: boolean; path: CellId[] } | null>(null);
+  const elementDragRef = useRef<{ active: boolean; path: CellId[]; cursor: CellId } | null>(null);
   const [elementDragPath, setElementDragPath] = useState<CellId[]>([]);
 
   const paintEdge = (edge: Edge) => {
@@ -122,18 +126,24 @@ export function GridCanvas({
     if (elementDragRef.current?.active) {
       e.preventDefault();
       const overId = cellIdFromElement(document.elementFromPoint(e.clientX, e.clientY));
-      const path = elementDragRef.current.path;
-      const last = path[path.length - 1];
+      const { path, cursor } = elementDragRef.current;
       if (
         overId &&
-        overId !== last &&
-        !path.includes(overId) &&
+        overId !== cursor &&
         !disabledSet.has(overId) &&
-        isOrthogonallyAdjacent(last, overId)
+        isOrthogonallyAdjacent(cursor, overId) &&
+        !isWallBetween(cursor, overId, puzzle.wallsRight, puzzle.wallsBottom)
       ) {
-        const nextPath = [...path, overId];
-        elementDragRef.current.path = nextPath;
-        setElementDragPath(nextPath);
+        // Il cursore si sposta sempre su una cella adiacente valida, anche se già visitata: così
+        // tornando indietro su una cella del percorso si può ripartire in un'altra direzione da
+        // lì (utile per formare un incrocio a T/croce in un unico trascinamento), senza perdere
+        // le celle già toccate, che restano tutte nel percorso finale.
+        elementDragRef.current.cursor = overId;
+        if (!path.includes(overId)) {
+          const nextPath = [...path, overId];
+          elementDragRef.current.path = nextPath;
+          setElementDragPath(nextPath);
+        }
       }
       return;
     }
@@ -164,7 +174,7 @@ export function GridCanvas({
   const handleCellPointerDown = (id: CellId) => (e: ReactPointerEvent<HTMLDivElement>) => {
     if (elementDragMode) {
       e.preventDefault();
-      elementDragRef.current = { active: true, path: [id] };
+      elementDragRef.current = { active: true, path: [id], cursor: id };
       setElementDragPath([id]);
       return;
     }
@@ -296,6 +306,24 @@ export function GridCanvas({
     }
   }
 
+  // Overlay a immagine unica per oggetti ad impronta fissa (es. letto): elementi a parte (non
+  // annidati in una .mk-cell), per poter coprire più celle in un solo elemento. z-index esplicito
+  // per stare sopra lo sfondo colorato delle celle ma sotto i marker dei sospettati (z-index:2).
+  for (const span of spanningImages) {
+    cells.push(
+      <div
+        key={`span-${span.groupId}`}
+        className="mk-spanning-image"
+        style={{
+          gridRow: `${2 * span.anchorRow + 2} / ${2 * span.anchorRow + 2 + 2 * span.heightCells - 1}`,
+          gridColumn: `${2 * span.anchorCol + 2} / ${2 * span.anchorCol + 2 + 2 * span.widthCells - 1}`,
+        }}
+      >
+        <img src={span.image} alt="" />
+      </div>,
+    );
+  }
+
   // Etichette dei nomi delle aree: elementi a parte (non annidati in una .mk-cell), così non
   // vengono ritagliati dal suo overflow:hidden e possono sporgere fuori, sotto la zona.
   for (const label of areaLabels) {
@@ -313,7 +341,13 @@ export function GridCanvas({
   return (
     <div
       className="mk-grid"
-      style={{ gridTemplateColumns: colTemplate, gridTemplateRows: rowTemplate }}
+      style={
+        {
+          gridTemplateColumns: colTemplate,
+          gridTemplateRows: rowTemplate,
+          '--icon-croce': `url("${iconCroce}")`,
+        } as CSSProperties
+      }
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={endDrag}
