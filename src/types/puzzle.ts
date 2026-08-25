@@ -36,9 +36,12 @@ export type Direction = 'N' | 'S' | 'E' | 'O';
 
 /**
  * Catalogo fisso degli oggetti piazzabili sulla mappa: icona/immagine, nome ed occupabilità.
- * Un tipo con `capImage`/`cornerImage`/`straightImage` è multi-cella: piazzato trascinando su
- * più celle in linea, ogni cella mostra la variante giusta (isolata/estremità/angolo/dritto)
- * ruotata in base a come si collega alle celle adiacenti dello stesso oggetto (vedi elementShape.ts).
+ * Un tipo con `capImage`/`cornerImage`/`straightImage`/`tImage`/`crossImage` è multi-cella:
+ * piazzato trascinando su più celle (anche ad angolo, o collegando celle aggiuntive per creare
+ * incroci a T/croce), ogni cella mostra la variante giusta in base a quante e quali celle
+ * adiacenti dello stesso oggetto tocca, ruotata di conseguenza (vedi elementShape.ts). Codici
+ * (per riferimento nei nomi file): 0=isolata, 1=capImage, 2=cornerImage, 3=tImage, 4=crossImage,
+ * 6=straightImage.
  */
 interface ElementCatalogEntry {
   type: string;
@@ -46,10 +49,22 @@ interface ElementCatalogEntry {
   image?: string;
   label: string;
   occupiable: boolean;
-  /** Presenti solo sui tipi multi-cella, per le celle con una/due connessioni allo stesso oggetto. */
+  /** Presenti solo sui tipi multi-cella. Un'immagine sola viene ruotata via CSS per adattarsi
+   * all'orientamento reale (convenzione a rotazione 0°: capImage collega verso Nord, cornerImage
+   * collega Nord+Est, straightImage collega Nord+Sud, tImage collega Nord+Est+Ovest). */
   capImage?: string;
   cornerImage?: string;
   straightImage?: string;
+  /** Incrocio a T (tre collegamenti). */
+  tImage?: string;
+  /** Incrocio a croce (quattro collegamenti): sempre simmetrico, nessuna rotazione. */
+  crossImage?: string;
+  /**
+   * Alternativa a `capImage` per oggetti il cui disegno non è semplicemente ruotabile:
+   * un'immagine già orientata per ciascuna direzione di collegamento singolo, usata al posto
+   * della rotazione CSS quando presente per quella direzione.
+   */
+  capImageByDirection?: Partial<Record<Direction, string>>;
 }
 
 export const ELEMENT_CATALOG: ElementCatalogEntry[] = [
@@ -83,10 +98,13 @@ export interface CustomElementType {
   image: string;
   /** Se false, nessun sospettato può avere la sua cella soluzione su questo oggetto */
   occupiable: boolean;
-  /** Presenti solo sui tipi multi-cella, per le celle con una/due connessioni allo stesso oggetto. */
+  /** Presenti solo sui tipi multi-cella (vedi ElementCatalogEntry per le convenzioni). */
   capImage?: string;
   cornerImage?: string;
   straightImage?: string;
+  tImage?: string;
+  crossImage?: string;
+  capImageByDirection?: Partial<Record<Direction, string>>;
 }
 
 export interface ResolvedElementType {
@@ -97,6 +115,9 @@ export interface ResolvedElementType {
   capImage?: string;
   cornerImage?: string;
   straightImage?: string;
+  tImage?: string;
+  crossImage?: string;
+  capImageByDirection?: Partial<Record<Direction, string>>;
 }
 
 /** Risolve un tipo di oggetto (catalogo fisso o personalizzato del puzzle) nella sua definizione. */
@@ -112,12 +133,17 @@ export function resolveElementType(type: string, customTypes: CustomElementType[
     capImage: custom.capImage,
     cornerImage: custom.cornerImage,
     straightImage: custom.straightImage,
+    tImage: custom.tImage,
+    crossImage: custom.crossImage,
+    capImageByDirection: custom.capImageByDirection,
   };
 }
 
-/** Un tipo è multi-cella se ha almeno la variante "estremità" (piazzabile trascinando in linea). */
-export function isMultiCellType(entry: Pick<ResolvedElementType, 'capImage'> | undefined): boolean {
-  return !!entry?.capImage;
+/** Un tipo è multi-cella se ha almeno una variante "estremità" (piazzabile trascinando/collegando celle). */
+export function isMultiCellType(
+  entry: Pick<ResolvedElementType, 'capImage' | 'capImageByDirection'> | undefined,
+): boolean {
+  return !!entry?.capImage || !!entry?.capImageByDirection;
 }
 
 export interface MapElement {

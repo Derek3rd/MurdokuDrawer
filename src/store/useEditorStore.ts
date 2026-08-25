@@ -30,6 +30,9 @@ interface EditorState {
   /** Piazza un oggetto multi-cella su più celle collegate (trascinamento nell'editor); una sola
    * cella si comporta come addElement (nessun groupId, variante "isolata"). */
   addElementChain: (type: string, cellIds: string[]) => void;
+  /** Collega una nuova cella al gruppo multi-cella di un elemento già piazzato (stesso tipo),
+   * anche per formare un incrocio a T o a croce; assegna un groupId all'ancora se non ne aveva uno. */
+  addElementToGroup: (type: string, cellId: string, anchorCellId: string) => void;
   removeElement: (id: string) => void;
   addCustomElementType: (entry: Omit<CustomElementType, 'id'>) => string;
   removeCustomElementType: (id: string) => void;
@@ -183,6 +186,16 @@ export const useEditorStore = create<EditorState>((set) => ({
         ...(groupId ? { groupId } : {}),
       }));
       return { puzzle: persist({ ...s.puzzle, elements: [...s.puzzle.elements, ...newElements] }) };
+    }),
+
+  addElementToGroup: (type, cellId, anchorCellId) =>
+    set((s) => {
+      const anchor = s.puzzle.elements.find((e) => e.cellId === anchorCellId && e.type === type);
+      if (!anchor) return s;
+      const groupId = anchor.groupId ?? crypto.randomUUID();
+      const elements = s.puzzle.elements.map((e) => (e.id === anchor.id && !e.groupId ? { ...e, groupId } : e));
+      elements.push({ id: crypto.randomUUID(), type, cellId, groupId });
+      return { puzzle: persist({ ...s.puzzle, elements }) };
     }),
 
   removeElement: (id) =>

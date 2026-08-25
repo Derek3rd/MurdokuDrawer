@@ -11,6 +11,7 @@ import { describeClue } from '../lib/describeClue';
 import { downloadPuzzleAsFile } from '../storage/puzzleStorage';
 import { elementConnections, resolveElementVisual } from '../lib/elementShape';
 import {
+  cellId,
   ELEMENT_CATALOG,
   isMultiCellType,
   parseCellId,
@@ -28,9 +29,9 @@ export default function EditorPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { puzzle, loadPuzzleById, rename, resize, toggleWallRight, toggleWallBottom, toggleWindow,
-    toggleCellDisabled, addElement, addElementChain, removeElement, addCustomElementType, removeCustomElementType,
-    setAreaName, setSuspectSolution, renameSuspect, setVictimSolution, setKiller, addClue, removeClue,
-    clearCluesForSuspect, addGlobalRule, removeGlobalRule } =
+    toggleCellDisabled, addElement, addElementChain, addElementToGroup, removeElement, addCustomElementType,
+    removeCustomElementType, setAreaName, setSuspectSolution, renameSuspect, setVictimSolution, setKiller, addClue,
+    removeClue, clearCluesForSuspect, addGlobalRule, removeGlobalRule } =
     useEditorStore();
 
   useEffect(() => {
@@ -82,9 +83,22 @@ export default function EditorPage() {
   const selectedElementEntry = resolveElementType(selectedElementType, puzzle.customElementTypes);
   const selectedElementIsMultiCell = isMultiCellType(selectedElementEntry);
 
+  // Cella adiacente (N/S/E/O) con un elemento dello stesso tipo, se presente: usata per collegare
+  // un click singolo ad un oggetto multi-cella già piazzato (permette di formare incroci a T/croce).
+  const adjacentSameTypeElement = (c: CellId, type: string) => {
+    const { row, col } = parseCellId(c);
+    const neighborIds = [cellId(row - 1, col), cellId(row + 1, col), cellId(row, col - 1), cellId(row, col + 1)];
+    for (const n of neighborIds) {
+      const el = puzzle.elements.find((e) => e.cellId === n && e.type === type);
+      if (el) return el;
+    }
+    return undefined;
+  };
+
   // Trascinamento su più celle (solo per oggetti multi-cella): una sola cella si comporta come
-  // il click semplice (aggiungi/sostituisci/rimuovi), più celle formano un unico oggetto collegato,
-  // rimpiazzando eventuali oggetti già presenti sul percorso.
+  // il click semplice (aggiungi/sostituisci/rimuovi, collegandosi ad un oggetto adiacente dello
+  // stesso tipo se già presente), più celle formano un unico oggetto collegato, rimpiazzando
+  // eventuali oggetti già presenti sul percorso.
   const onElementDragComplete = (cells: CellId[]) => {
     if (cells.length === 0 || puzzle.disabledCells.includes(cells[0])) return;
     if (cells.length === 1) {
@@ -92,9 +106,12 @@ export default function EditorPage() {
       const existing = elementAt(c);
       if (existing?.type === selectedElementType) {
         removeElement(existing.id);
-      } else if (existing) {
-        removeElement(existing.id);
-        addElement({ type: selectedElementType, cellId: c });
+        return;
+      }
+      if (existing) removeElement(existing.id);
+      const anchor = selectedElementIsMultiCell ? adjacentSameTypeElement(c, selectedElementType) : undefined;
+      if (anchor) {
+        addElementToGroup(selectedElementType, c, anchor.cellId);
       } else {
         addElement({ type: selectedElementType, cellId: c });
       }
@@ -352,7 +369,7 @@ export default function EditorPage() {
           {tool === 'elements' && !selectedElementIsMultiCell &&
             'Scegli un oggetto sopra, poi clicca una cella per piazzarlo (clicca di nuovo lo stesso oggetto per rimuoverlo).'}
           {tool === 'elements' && selectedElementIsMultiCell &&
-            "Oggetto multi-cella 🔗: trascina lungo le celle (anche ad angolo) per piazzarlo su più celle collegate, oppure clicca una singola cella per piazzarlo isolato."}
+            'Oggetto multi-cella 🔗: trascina lungo le celle (anche ad angolo) per piazzarlo su più celle collegate. Clicca una cella isolata per piazzarlo da solo, oppure una cella adiacente a un pezzo già presente dello stesso oggetto per agganciarla (utile per creare incroci a T o a croce).'}
           {tool === 'suspects' &&
             'Seleziona un sospettato (o la vittima V) sopra, poi clicca la cella soluzione. Le celle in grigio sono bloccate da riga/colonna già occupate.'}
         </p>

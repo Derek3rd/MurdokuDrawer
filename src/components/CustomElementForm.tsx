@@ -61,6 +61,8 @@ export default function CustomElementForm({ onSubmit, onCancel }: CustomElementF
   const [capImage, setCapImage] = useState('');
   const [cornerImage, setCornerImage] = useState('');
   const [straightImage, setStraightImage] = useState('');
+  const [tImage, setTImage] = useState('');
+  const [crossImage, setCrossImage] = useState('');
 
   const canSubmit =
     name.trim() !== '' && image !== '' && (!multiCell || (capImage !== '' && cornerImage !== '' && straightImage !== ''));
@@ -71,7 +73,15 @@ export default function CustomElementForm({ onSubmit, onCancel }: CustomElementF
       name: name.trim(),
       image,
       occupiable,
-      ...(multiCell ? { capImage, cornerImage, straightImage } : {}),
+      ...(multiCell
+        ? {
+            capImage,
+            cornerImage,
+            straightImage,
+            ...(tImage ? { tImage } : {}),
+            ...(crossImage ? { crossImage } : {}),
+          }
+        : {}),
     });
   };
 
@@ -109,6 +119,12 @@ export default function CustomElementForm({ onSubmit, onCancel }: CustomElementF
           <ImagePicker label="Immagine (un collegamento)" value={capImage} onChange={setCapImage} />
           <ImagePicker label="Immagine (due collegamenti ad angolo)" value={cornerImage} onChange={setCornerImage} />
           <ImagePicker label="Immagine (due collegamenti opposti)" value={straightImage} onChange={setStraightImage} />
+          <p style={{ fontSize: '0.8rem', color: '#666', margin: 0 }}>
+            Opzionali: solo se l'oggetto può diramarsi (celle collegate cliccando accanto a un pezzo già
+            piazzato, non solo trascinando in linea).
+          </p>
+          <ImagePicker label="Immagine (incrocio a T, tre collegamenti)" value={tImage} onChange={setTImage} />
+          <ImagePicker label="Immagine (incrocio a croce, quattro collegamenti)" value={crossImage} onChange={setCrossImage} />
         </div>
       )}
 
