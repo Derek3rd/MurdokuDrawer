@@ -250,6 +250,7 @@ export default function PlayPage() {
         <GridCanvas
           puzzle={puzzle}
           windows={puzzle.windows}
+          disabledCellsHidden
           cellClassName={(c) => {
             if (isAutoExcludedCell(c) || playState.manualMarks.includes(c)) return 'locked';
             return undefined;

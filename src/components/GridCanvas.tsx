@@ -6,7 +6,7 @@ import iconCroce from '../assets/ui/croce.svg';
 import './GridCanvas.css';
 
 const GAP = 4; // px, spessore della fascia cliccabile/trascinabile per i muri interni
-const PERI_GAP = 14; // px, spessore della fascia cliccabile per le finestre sul perimetro
+const PERI_GAP = 8; // px, spessore della fascia (nera di default) del perimetro/finestre
 const LONG_PRESS_MS = 450;
 const MOVE_CANCEL_PX = 10;
 const AREA_PALETTE = [
@@ -47,6 +47,8 @@ interface GridCanvasProps {
   areaLabels?: { row: number; colMin: number; colMax: number; text: string }[];
   /** Overlay a immagine unica per oggetti ad "impronta fissa" (es. letto), estesi su più celle (vedi fixedFootprintGroups). */
   spanningImages?: { groupId: string; anchorRow: number; anchorCol: number; widthCells: number; heightCells: number; image: string }[];
+  /** In modalità gioco le celle disattivate non si mostrano affatto (niente tratteggio): il perimetro nero attorno a loro basta. */
+  disabledCellsHidden?: boolean;
 }
 
 function edgeFromElement(el: Element | null): Edge | null {
@@ -86,6 +88,7 @@ export function GridCanvas({
   editableWindows = false,
   areaLabels = [],
   spanningImages = [],
+  disabledCellsHidden = false,
 }: GridCanvasProps) {
   const { width, height } = puzzle;
   const areas = computeAreas(puzzle);
@@ -296,7 +299,7 @@ export function GridCanvas({
         <div
           key={id}
           data-cell-id={id}
-          className={`mk-cell ${isDisabled ? 'mk-cell-disabled' : ''} ${extraClassName} ${pressingCell === id ? 'pressing' : ''} ${elementDragPath.includes(id) ? 'mk-cell-drag-path' : ''}`}
+          className={`mk-cell ${isDisabled ? (disabledCellsHidden ? 'mk-cell-disabled-hidden' : 'mk-cell-disabled') : ''} ${extraClassName} ${pressingCell === id ? 'pressing' : ''} ${elementDragPath.includes(id) ? 'mk-cell-drag-path' : ''}`}
           style={{ gridRow: 2 * r + 2, gridColumn: 2 * c + 2, background: bg, ...(isDisabled ? undefined : cellStyle?.(id)) }}
           onPointerDown={handleCellPointerDown(id)}
           onPointerUp={handleCellPointerUp(id)}
