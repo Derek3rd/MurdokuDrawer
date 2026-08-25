@@ -103,9 +103,10 @@ export default function PlayPage() {
 
   // Click breve: in modalità "segna cella" segna/toglie una X manuale sulla cella
   // (uguale nell'aspetto a quella automatica, ma non legata ad un sospettato); in modalità
-  // "svuota cella" cancella tutte le posizioni probabili segnate lì; altrimenti segna/toglie
-  // un candidato per il sospettato selezionato. Le X automatiche di riga/colonna sono
-  // calcolate a parte: il giocatore non può toglierle.
+  // "svuota cella" cancella sia le posizioni probabili sia l'eventuale X manuale segnate lì
+  // (non quella automatica, calcolata a parte); altrimenti segna/toglie un candidato per il
+  // sospettato selezionato. Le X automatiche di riga/colonna restano sempre: il giocatore non
+  // può toglierle.
   const onCellTap = (c: CellId) => {
     if (puzzle.disabledCells.includes(c)) return; // cella fuori dalla mappa
     if (markMode) {
@@ -202,8 +203,8 @@ export default function PlayPage() {
           Seleziona un sospettato (o la vittima V), poi tocca una cella per segnare un candidato (●), tieni premuto
           per confermarne la posizione definitiva. Con "Segna cella" attivo, il tap segna invece una cella come
           non occupabile da nessuno: le X grigie (automatiche o manuali) hanno lo stesso aspetto, ma solo quelle
-          manuali si possono togliere. Con "Svuota cella" attivo, il tap cancella tutte le posizioni probabili
-          segnate su quella cella in un colpo solo.
+          manuali si possono togliere. Con "Svuota cella" attivo, il tap cancella in un colpo solo sia le posizioni
+          probabili sia l'eventuale X manuale segnate su quella cella.
         </p>
 
         <div className="mk-toolbar">

@@ -111,10 +111,12 @@ export default function EditorPage() {
     return undefined;
   };
 
-  // Trascinamento su più celle (solo per oggetti multi-cella): una sola cella si comporta come
-  // il click semplice (aggiungi/sostituisci/rimuovi, collegandosi ad un oggetto adiacente dello
-  // stesso tipo se già presente), più celle formano un unico oggetto collegato, rimpiazzando
-  // eventuali oggetti già presenti sul percorso.
+  // Trascinamento su più celle (solo per oggetti multi-cella a connettori, es. tappeto/tavolo: gli
+  // oggetti ad impronta fissa come il letto non usano il trascinamento, vedi
+  // handleFixedFootprintClick): una sola cella si comporta come il click semplice
+  // (aggiungi/sostituisci/rimuovi, collegandosi ad un oggetto adiacente dello stesso tipo se già
+  // presente), più celle formano un unico oggetto collegato, rimpiazzando eventuali oggetti già
+  // presenti sul percorso.
   const onElementDragComplete = (cells: CellId[]) => {
     if (cells.length === 0 || puzzle.disabledCells.includes(cells[0])) return;
     if (cells.length === 1) {
@@ -125,12 +127,7 @@ export default function EditorPage() {
         return;
       }
       if (existing) removeElement(existing.id);
-      // Gli oggetti ad impronta fissa (letto) non si agganciano per formare incroci: una singola
-      // cella piazza sempre un pezzo isolato con l'immagine 1x1 di fallback.
-      const anchor =
-        selectedElementIsMultiCell && !selectedElementIsFixedFootprint
-          ? adjacentSameTypeElement(c, selectedElementType)
-          : undefined;
+      const anchor = selectedElementIsMultiCell ? adjacentSameTypeElement(c, selectedElementType) : undefined;
       if (anchor) {
         addElementToGroup(selectedElementType, c, anchor.cellId);
       } else {
@@ -138,20 +135,98 @@ export default function EditorPage() {
       }
       return;
     }
-    if (selectedElementIsFixedFootprint) {
-      // Un oggetto ad impronta fissa va trascinato in linea retta, per una lunghezza che
-      // corrisponda ad una delle taglie WxH dichiarate (es. "2x1"): niente angoli/T/croce.
-      const positions = cells.map(parseCellId);
-      const sameRow = positions.every((p) => p.row === positions[0].row);
-      const sameCol = positions.every((p) => p.col === positions[0].col);
-      if (!sameRow && !sameCol) return;
-      const width = sameRow ? cells.length : 1;
-      const height = sameCol ? cells.length : 1;
-      if (!selectedElementEntry?.fixedFootprintImages?.[`${width}x${height}`]) return;
-    }
     for (const c of cells) {
       const existing = elementAt(c);
       if (existing) removeElement(existing.id);
+    }
+    addElementChain(selectedElementType, cells);
+  };
+
+  // Oggetti ad impronta fissa (es. letto/auto): niente trascinamento ad area. Si clicca la cella
+  // in alto a sinistra da cui partire; ad ogni click successivo su QUELLA STESSA cella (l'ancora
+  // del gruppo già piazzato) si passa alla taglia dichiarata successiva (es. auto_2x1 -> auto_1x2
+  // -> auto_2x3 -> ... e poi di nuovo da capo), saltando le taglie che non entrano in quella
+  // posizione (bordo della griglia, muri, celle disattivate o già occupate). Cliccare una cella
+  // diversa (anche se fa parte dello stesso oggetto ma non è l'ancora) ricomincia lì da capo con
+  // la prima taglia.
+  const footprintSizeOrder = (images: Partial<Record<string, string>>) =>
+    Object.keys(images)
+      .map((key) => {
+        const [width, height] = key.split('x').map(Number);
+        return { key, width, height };
+      })
+      .sort((a, b) => a.width - b.width || a.height - b.height);
+
+  const handleFixedFootprintClick = (c: CellId) => {
+    const images = selectedElementEntry?.fixedFootprintImages;
+    if (!images) return;
+    const sizes = footprintSizeOrder(images);
+    if (sizes.length === 0) return;
+
+    const existing = elementAt(c);
+    const sameTypeGroup =
+      existing?.type === selectedElementType
+        ? existing.groupId
+          ? puzzle.elements.filter((e) => e.groupId === existing.groupId && e.type === selectedElementType)
+          : [existing]
+        : [];
+
+    let anchor = c;
+    let startIndex = 0;
+    let groupToRemove = sameTypeGroup;
+
+    if (sameTypeGroup.length > 0) {
+      const positions = sameTypeGroup.map((e) => parseCellId(e.cellId));
+      const rowMin = Math.min(...positions.map((p) => p.row));
+      const colMin = Math.min(...positions.map((p) => p.col));
+      if (cellId(rowMin, colMin) === c) {
+        const rowMax = Math.max(...positions.map((p) => p.row));
+        const colMax = Math.max(...positions.map((p) => p.col));
+        const currentKey = `${colMax - colMin + 1}x${rowMax - rowMin + 1}`;
+        const currentIndex = sizes.findIndex((s) => s.key === currentKey);
+        startIndex = currentIndex === -1 ? 0 : (currentIndex + 1) % sizes.length;
+      }
+    } else if (existing) {
+      groupToRemove = [existing];
+    }
+
+    const { row: anchorRow, col: anchorCol } = parseCellId(anchor);
+    const removedIds = new Set(groupToRemove.map((e) => e.cellId));
+
+    const fits = (width: number, height: number) => {
+      if (anchorRow + height > puzzle.height || anchorCol + width > puzzle.width) return false;
+      for (let r = anchorRow; r < anchorRow + height; r++) {
+        for (let cc = anchorCol; cc < anchorCol + width; cc++) {
+          const id = cellId(r, cc);
+          if (puzzle.disabledCells.includes(id)) return false;
+          if (elementAt(id) && !removedIds.has(id)) return false;
+          if (cc + 1 < anchorCol + width && isWallBetween(id, cellId(r, cc + 1), puzzle.wallsRight, puzzle.wallsBottom)) {
+            return false;
+          }
+          if (r + 1 < anchorRow + height && isWallBetween(id, cellId(r + 1, cc), puzzle.wallsRight, puzzle.wallsBottom)) {
+            return false;
+          }
+        }
+      }
+      return true;
+    };
+
+    let chosen: { key: string; width: number; height: number } | null = null;
+    for (let i = 0; i < sizes.length; i++) {
+      const candidate = sizes[(startIndex + i) % sizes.length];
+      if (fits(candidate.width, candidate.height)) {
+        chosen = candidate;
+        break;
+      }
+    }
+    if (!chosen) return;
+
+    for (const e of groupToRemove) removeElement(e.id);
+    const cells: CellId[] = [];
+    for (let r = anchorRow; r < anchorRow + chosen.height; r++) {
+      for (let cc = anchorCol; cc < anchorCol + chosen.width; cc++) {
+        cells.push(cellId(r, cc));
+      }
     }
     addElementChain(selectedElementType, cells);
   };
@@ -162,6 +237,10 @@ export default function EditorPage() {
     } else if (puzzle.disabledCells.includes(c)) {
       return; // cella disattivata: non fa parte della mappa
     } else if (tool === 'elements') {
+      if (selectedElementIsFixedFootprint) {
+        handleFixedFootprintClick(c);
+        return;
+      }
       const existing = elementAt(c);
       if (existing?.type === selectedElementType) {
         removeElement(existing.id);
@@ -373,7 +452,7 @@ export default function EditorPage() {
           editableWalls={tool === 'walls' && wallSubTool === 'walls'}
           onEdgeClick={onEdgeClick}
           onCellClick={onCellClick}
-          elementDragMode={tool === 'elements' && selectedElementIsMultiCell}
+          elementDragMode={tool === 'elements' && selectedElementIsMultiCell && !selectedElementIsFixedFootprint}
           onElementDragComplete={onElementDragComplete}
           windows={puzzle.windows}
           onWindowClick={onWindowClick}
@@ -427,7 +506,7 @@ export default function EditorPage() {
           {tool === 'elements' && selectedElementIsMultiCell && !selectedElementIsFixedFootprint &&
             'Oggetto multi-cella 🔗: trascina lungo le celle (anche ad angolo) per piazzarlo su più celle collegate. Per un incrocio a T o a croce, senza sollevare il dito torna indietro su una cella già toccata del percorso e riparti in un\'altra direzione. Clicca una cella isolata per piazzarlo da solo, oppure una cella adiacente a un pezzo già presente dello stesso oggetto per agganciarla.'}
           {tool === 'elements' && selectedElementIsFixedFootprint &&
-            'Oggetto ad impronta fissa 🔗: trascina in linea retta per il numero di celle corrispondente a una taglia disponibile (es. 2 celle in orizzontale o in verticale) per piazzarlo con una singola immagine. Clicca una cella isolata per piazzarlo da solo.'}
+            'Oggetto ad impronta fissa 🔗: clicca la cella in alto a sinistra da cui partire per piazzarlo con la prima taglia disponibile. Clicca di nuovo quella stessa cella per passare alla taglia successiva (cambia orientamento/dimensione), ciclando tra tutte quelle disponibili. Clicca una cella diversa per ricominciare da lì.'}
           {tool === 'suspects' &&
             'Seleziona un sospettato (o la vittima V) sopra, poi clicca la cella soluzione. Le celle in grigio sono bloccate da riga/colonna già occupate.'}
         </p>
