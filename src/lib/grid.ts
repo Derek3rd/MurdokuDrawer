@@ -100,6 +100,21 @@ export function areaBottomLabelAnchor(cells: CellId[]): { row: number; colMin: n
   return { row, colMin: Math.min(...cols), colMax: Math.max(...cols) };
 }
 
+/** True se c'è un muro tra due celle adiacenti `a` e `b` (in un ordine qualsiasi). */
+export function isWallBetween(a: CellId, b: CellId, wallsRight: CellId[], wallsBottom: CellId[]): boolean {
+  const pa = parseCellId(a);
+  const pb = parseCellId(b);
+  if (pa.row === pb.row && Math.abs(pa.col - pb.col) === 1) {
+    const left = pa.col < pb.col ? a : b;
+    return wallsRight.includes(left);
+  }
+  if (pa.col === pb.col && Math.abs(pa.row - pb.row) === 1) {
+    const top = pa.row < pb.row ? a : b;
+    return wallsBottom.includes(top);
+  }
+  return false;
+}
+
 export function isAdjacent(a: CellId, b: CellId): boolean {
   const ca = parseCellId(a);
   const cb = parseCellId(b);
