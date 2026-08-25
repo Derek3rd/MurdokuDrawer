@@ -425,7 +425,7 @@ export default function EditorPage() {
           {tool === 'elements' && !selectedElementIsMultiCell &&
             'Scegli un oggetto sopra, poi clicca una cella per piazzarlo (clicca di nuovo lo stesso oggetto per rimuoverlo).'}
           {tool === 'elements' && selectedElementIsMultiCell && !selectedElementIsFixedFootprint &&
-            'Oggetto multi-cella 🔗: trascina lungo le celle (anche ad angolo) per piazzarlo su più celle collegate. Clicca una cella isolata per piazzarlo da solo, oppure una cella adiacente a un pezzo già presente dello stesso oggetto per agganciarla (utile per creare incroci a T o a croce).'}
+            'Oggetto multi-cella 🔗: trascina lungo le celle (anche ad angolo) per piazzarlo su più celle collegate. Per un incrocio a T o a croce, senza sollevare il dito torna indietro su una cella già toccata del percorso e riparti in un\'altra direzione. Clicca una cella isolata per piazzarlo da solo, oppure una cella adiacente a un pezzo già presente dello stesso oggetto per agganciarla.'}
           {tool === 'elements' && selectedElementIsFixedFootprint &&
             'Oggetto ad impronta fissa 🔗: trascina in linea retta per il numero di celle corrispondente a una taglia disponibile (es. 2 celle in orizzontale o in verticale) per piazzarlo con una singola immagine. Clicca una cella isolata per piazzarlo da solo.'}
           {tool === 'suspects' &&

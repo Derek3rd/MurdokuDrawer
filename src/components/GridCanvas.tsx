@@ -96,7 +96,7 @@ export function GridCanvas({
     null,
   );
   const [pressingCell, setPressingCell] = useState<CellId | null>(null);
-  const elementDragRef = useRef<{ active: boolean; path: CellId[] } | null>(null);
+  const elementDragRef = useRef<{ active: boolean; path: CellId[]; cursor: CellId } | null>(null);
   const [elementDragPath, setElementDragPath] = useState<CellId[]>([]);
 
   const paintEdge = (edge: Edge) => {
@@ -125,19 +125,24 @@ export function GridCanvas({
     if (elementDragRef.current?.active) {
       e.preventDefault();
       const overId = cellIdFromElement(document.elementFromPoint(e.clientX, e.clientY));
-      const path = elementDragRef.current.path;
-      const last = path[path.length - 1];
+      const { path, cursor } = elementDragRef.current;
       if (
         overId &&
-        overId !== last &&
-        !path.includes(overId) &&
+        overId !== cursor &&
         !disabledSet.has(overId) &&
-        isOrthogonallyAdjacent(last, overId) &&
-        !isWallBetween(last, overId, puzzle.wallsRight, puzzle.wallsBottom)
+        isOrthogonallyAdjacent(cursor, overId) &&
+        !isWallBetween(cursor, overId, puzzle.wallsRight, puzzle.wallsBottom)
       ) {
-        const nextPath = [...path, overId];
-        elementDragRef.current.path = nextPath;
-        setElementDragPath(nextPath);
+        // Il cursore si sposta sempre su una cella adiacente valida, anche se già visitata: così
+        // tornando indietro su una cella del percorso si può ripartire in un'altra direzione da
+        // lì (utile per formare un incrocio a T/croce in un unico trascinamento), senza perdere
+        // le celle già toccate, che restano tutte nel percorso finale.
+        elementDragRef.current.cursor = overId;
+        if (!path.includes(overId)) {
+          const nextPath = [...path, overId];
+          elementDragRef.current.path = nextPath;
+          setElementDragPath(nextPath);
+        }
       }
       return;
     }
@@ -168,7 +173,7 @@ export function GridCanvas({
   const handleCellPointerDown = (id: CellId) => (e: ReactPointerEvent<HTMLDivElement>) => {
     if (elementDragMode) {
       e.preventDefault();
-      elementDragRef.current = { active: true, path: [id] };
+      elementDragRef.current = { active: true, path: [id], cursor: id };
       setElementDragPath([id]);
       return;
     }
