@@ -22,6 +22,8 @@ import {
 } from '../types/puzzle';
 
 type Tool = 'walls' | 'elements' | 'suspects';
+/** Sotto-azione dello strumento "Muri / Aree": solo una alla volta per evitare clic accidentali. */
+type WallSubTool = 'walls' | 'cells' | 'windows';
 
 /** Chiave riservata usata per selezionare/piazzare la vittima nello strumento "Sospettati". */
 const VICTIM_ID = 'victim';
@@ -40,6 +42,7 @@ export default function EditorPage() {
   }, [id, loadPuzzleById]);
 
   const [tool, setTool] = useState<Tool>('walls');
+  const [wallSubTool, setWallSubTool] = useState<WallSubTool>('walls');
   const [selectedSuspectId, setSelectedSuspectId] = useState<string | null>(puzzle.suspects[0]?.id ?? null);
   const [selectedElementType, setSelectedElementType] = useState<string>(ELEMENT_CATALOG[0].type);
   const [showCustomElementForm, setShowCustomElementForm] = useState(false);
@@ -128,7 +131,7 @@ export default function EditorPage() {
 
   const onCellClick = (c: CellId) => {
     if (tool === 'walls') {
-      toggleCellDisabled(c);
+      if (wallSubTool === 'cells') toggleCellDisabled(c);
     } else if (puzzle.disabledCells.includes(c)) {
       return; // cella disattivata: non fa parte della mappa
     } else if (tool === 'elements') {
@@ -167,13 +170,13 @@ export default function EditorPage() {
   };
 
   const onEdgeClick = ({ side, cell }: { side: 'right' | 'bottom'; cell: CellId }) => {
-    if (tool !== 'walls') return;
+    if (tool !== 'walls' || wallSubTool !== 'walls') return;
     if (side === 'right') toggleWallRight(cell);
     else toggleWallBottom(cell);
   };
 
   const onWindowClick = ({ cellId, side }: { cellId: CellId; side: Direction }) => {
-    if (tool !== 'walls') return;
+    if (tool !== 'walls' || wallSubTool !== 'windows') return;
     toggleWindow(cellId, side);
   };
 
@@ -228,6 +231,29 @@ export default function EditorPage() {
             🕵️ Sospettati
           </button>
         </div>
+
+        {tool === 'walls' && (
+          <div className="mk-row" style={{ marginBottom: '0.5rem' }}>
+            <button
+              className={`mk-btn ${wallSubTool === 'walls' ? '' : 'secondary'}`}
+              onClick={() => setWallSubTool('walls')}
+            >
+              🧱 Disegna muri
+            </button>
+            <button
+              className={`mk-btn ${wallSubTool === 'cells' ? '' : 'secondary'}`}
+              onClick={() => setWallSubTool('cells')}
+            >
+              ⬛ Attiva/disattiva celle
+            </button>
+            <button
+              className={`mk-btn ${wallSubTool === 'windows' ? '' : 'secondary'}`}
+              onClick={() => setWallSubTool('windows')}
+            >
+              🪟 Finestre
+            </button>
+          </div>
+        )}
 
         {tool === 'suspects' && (
           <div className="mk-row" style={{ marginBottom: '0.5rem' }}>
@@ -317,14 +343,14 @@ export default function EditorPage() {
 
         <GridCanvas
           puzzle={puzzle}
-          editableWalls={tool === 'walls'}
+          editableWalls={tool === 'walls' && wallSubTool === 'walls'}
           onEdgeClick={onEdgeClick}
           onCellClick={onCellClick}
           elementDragMode={tool === 'elements' && selectedElementIsMultiCell}
           onElementDragComplete={onElementDragComplete}
           windows={puzzle.windows}
           onWindowClick={onWindowClick}
-          editableWindows={tool === 'walls'}
+          editableWindows={tool === 'walls' && wallSubTool === 'windows'}
           areaLabels={areas.areaIds
             .map((areaId) => {
               const text = areaCustomName(areaId, puzzle.areaNames, areas);
@@ -360,8 +386,12 @@ export default function EditorPage() {
           }}
         />
         <p style={{ textAlign: 'center', fontSize: '0.85rem', color: '#666' }}>
-          {tool === 'walls' &&
-            "Trascina tra le celle per i muri, sul bordo esterno per le finestre. Clicca una cella per attivarla/disattivarla (griglie non rettangolari). Dai un nome alle aree nell'elenco qui sotto."}
+          {tool === 'walls' && wallSubTool === 'walls' &&
+            "Trascina tra le celle per disegnare o cancellare i muri interni. Dai un nome alle aree nell'elenco qui sotto."}
+          {tool === 'walls' && wallSubTool === 'cells' &&
+            'Clicca una cella per attivarla o disattivarla (per creare griglie non rettangolari).'}
+          {tool === 'walls' && wallSubTool === 'windows' &&
+            'Clicca il bordo esterno del perimetro per segnare o togliere una finestra.'}
           {tool === 'elements' && !selectedElementIsMultiCell &&
             'Scegli un oggetto sopra, poi clicca una cella per piazzarlo (clicca di nuovo lo stesso oggetto per rimuoverlo).'}
           {tool === 'elements' && selectedElementIsMultiCell &&
