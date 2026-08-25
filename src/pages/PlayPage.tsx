@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { GridCanvas } from '../components/GridCanvas';
 import SuspectMarker from '../components/SuspectMarker';
-import iconCancella from '../assets/icons/cancella.svg';
+import iconCancella from '../assets/ui/cancella.svg';
 import { usePlayStore } from '../store/usePlayStore';
 import { loadPuzzle } from '../storage/puzzleStorage';
 import { areaBottomLabelAnchor, computeAreas } from '../lib/grid';

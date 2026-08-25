@@ -12,7 +12,6 @@ import iconCassa from '../assets/icons/cassa.svg';
 import iconCespuglio from '../assets/icons/cespuglio.svg';
 import iconCestino from '../assets/icons/cestino.svg';
 import iconCono from '../assets/icons/cono.svg';
-import iconLetto from '../assets/icons/letto.svg';
 import iconLibreria from '../assets/icons/libreria.svg';
 import iconMacerie from '../assets/icons/macerie.svg';
 import iconPianta from '../assets/icons/pianta.svg';
@@ -183,7 +182,6 @@ export const ELEMENT_CATALOG: ElementCatalogEntry[] = [
   {
     type: 'bed',
     icon: '🛏️',
-    image: iconLetto,
     label: 'Letto',
     occupiable: true,
     fixedFootprintImages: footprintImagesFor('letto'),
