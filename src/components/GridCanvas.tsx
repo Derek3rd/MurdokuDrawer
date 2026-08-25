@@ -1,6 +1,6 @@
 import { useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
 import { cellId, type CellId, type Direction, type WindowEdge } from '../types/puzzle';
-import { computeAreas } from '../lib/grid';
+import { computeAreas, isWallBetween } from '../lib/grid';
 import type { Puzzle } from '../types/puzzle';
 import './GridCanvas.css';
 
@@ -129,7 +129,8 @@ export function GridCanvas({
         overId !== last &&
         !path.includes(overId) &&
         !disabledSet.has(overId) &&
-        isOrthogonallyAdjacent(last, overId)
+        isOrthogonallyAdjacent(last, overId) &&
+        !isWallBetween(last, overId, puzzle.wallsRight, puzzle.wallsBottom)
       ) {
         const nextPath = [...path, overId];
         elementDragRef.current.path = nextPath;

@@ -6,7 +6,7 @@ import CustomElementForm from '../components/CustomElementForm';
 import SuspectMarker from '../components/SuspectMarker';
 import { useEditorStore } from '../store/useEditorStore';
 import { areaColor } from '../components/GridCanvas';
-import { areaBottomLabelAnchor, areaCentroidCell, computeAreas } from '../lib/grid';
+import { areaBottomLabelAnchor, areaCentroidCell, computeAreas, isWallBetween } from '../lib/grid';
 import { areaLabel, areaDisplayName, areaCustomName } from '../lib/areaLabel';
 import { describeClue } from '../lib/describeClue';
 import { downloadPuzzleAsFile } from '../storage/puzzleStorage';
@@ -90,6 +90,7 @@ export default function EditorPage() {
     const { row, col } = parseCellId(c);
     const neighborIds = [cellId(row - 1, col), cellId(row + 1, col), cellId(row, col - 1), cellId(row, col + 1)];
     for (const n of neighborIds) {
+      if (isWallBetween(c, n, puzzle.wallsRight, puzzle.wallsBottom)) continue;
       const el = puzzle.elements.find((e) => e.cellId === n && e.type === type);
       if (el) return el;
     }
