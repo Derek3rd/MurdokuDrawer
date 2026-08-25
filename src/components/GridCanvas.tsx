@@ -42,6 +42,8 @@ interface GridCanvasProps {
   windows?: WindowEdge[];
   onWindowClick?: (edge: WindowEdge) => void;
   editableWindows?: boolean;
+  /** Etichette dei nomi delle aree, piazzate fuori dalle celle appena sotto la zona (vedi areaBottomLabelAnchor). */
+  areaLabels?: { row: number; colMin: number; colMax: number; text: string }[];
 }
 
 function edgeFromElement(el: Element | null): Edge | null {
@@ -79,6 +81,7 @@ export function GridCanvas({
   windows = [],
   onWindowClick,
   editableWindows = false,
+  areaLabels = [],
 }: GridCanvasProps) {
   const { width, height } = puzzle;
   const areas = computeAreas(puzzle);
@@ -291,6 +294,20 @@ export function GridCanvas({
         if (c === width - 1) cells.push(windowEdge(id, 'E', 2 * r + 2, 2 * width + 1));
       }
     }
+  }
+
+  // Etichette dei nomi delle aree: elementi a parte (non annidati in una .mk-cell), così non
+  // vengono ritagliati dal suo overflow:hidden e possono sporgere fuori, sotto la zona.
+  for (const label of areaLabels) {
+    cells.push(
+      <div
+        key={`area-label-${label.row}-${label.colMin}-${label.colMax}`}
+        className="mk-area-name"
+        style={{ gridRow: 2 * label.row + 2, gridColumn: `${2 * label.colMin + 2} / ${2 * label.colMax + 3}` }}
+      >
+        {label.text}
+      </div>,
+    );
   }
 
   return (

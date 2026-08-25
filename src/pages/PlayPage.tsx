@@ -3,7 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import { GridCanvas } from '../components/GridCanvas';
 import { usePlayStore } from '../store/usePlayStore';
 import { loadPuzzle } from '../storage/puzzleStorage';
-import { areaCentroidCell, computeAreas } from '../lib/grid';
+import { areaBottomLabelAnchor, computeAreas } from '../lib/grid';
 import { describeClue } from '../lib/describeClue';
 import { areaCustomName, areaDisplayName } from '../lib/areaLabel';
 import { elementConnections, resolveElementVisual } from '../lib/elementShape';
@@ -211,6 +211,12 @@ export default function PlayPage() {
             if (!color) return undefined;
             return { boxShadow: `inset 0 0 0 999px ${hexToRgba(color, 0.3)}` };
           }}
+          areaLabels={areas.areaIds
+            .map((areaId) => {
+              const text = areaCustomName(areaId, puzzle.areaNames, areas);
+              return text ? { ...areaBottomLabelAnchor(areas.areaCells[areaId]), text } : null;
+            })
+            .filter((l): l is NonNullable<typeof l> => l !== null)}
           onCellClick={onCellTap}
           onCellLongPress={onCellLongPress}
           renderCell={(c) => {
@@ -220,12 +226,8 @@ export default function PlayPage() {
             const confirmedSuspect = puzzle.suspects.find((s) => confirmed[s.id] === c);
             const victimConfirmedHere = !confirmedSuspect && confirmed[VICTIM_ID] === c;
             const candidateIds = playState.candidates[c] ?? [];
-            const areaId = areas.cellArea[c];
-            const areaName = areaCustomName(areaId, puzzle.areaNames, areas);
-            const name = areaName && areaCentroidCell(areas.areaCells[areaId]) === c ? areaName : undefined;
             return (
               <>
-                {name && <span className="mk-area-name">{name}</span>}
                 {elEntry && visual && (
                   <span
                     className="mk-element-icon"

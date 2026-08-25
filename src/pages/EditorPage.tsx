@@ -5,7 +5,7 @@ import ClueForm from '../components/ClueForm';
 import CustomElementForm from '../components/CustomElementForm';
 import { useEditorStore } from '../store/useEditorStore';
 import { areaColor } from '../components/GridCanvas';
-import { areaCentroidCell, computeAreas } from '../lib/grid';
+import { areaBottomLabelAnchor, areaCentroidCell, computeAreas } from '../lib/grid';
 import { areaLabel, areaDisplayName, areaCustomName } from '../lib/areaLabel';
 import { describeClue } from '../lib/describeClue';
 import { downloadPuzzleAsFile } from '../storage/puzzleStorage';
@@ -323,6 +323,12 @@ export default function EditorPage() {
           windows={puzzle.windows}
           onWindowClick={onWindowClick}
           editableWindows={tool === 'walls'}
+          areaLabels={areas.areaIds
+            .map((areaId) => {
+              const text = areaCustomName(areaId, puzzle.areaNames, areas);
+              return text ? { ...areaBottomLabelAnchor(areas.areaCells[areaId]), text } : null;
+            })
+            .filter((l): l is NonNullable<typeof l> => l !== null)}
           cellClassName={(c) => {
             if (tool === 'suspects' && isExcludedCell(c)) return 'locked';
             if (puzzle.victim.solutionCellId === c) return 'victim';
@@ -334,12 +340,8 @@ export default function EditorPage() {
             const visual = el && elEntry ? resolveElementVisual(elEntry, elementConnections(el, puzzle.elements)) : undefined;
             const sus = suspectAt(c);
             const isVictimHere = puzzle.victim.solutionCellId === c;
-            const areaId = areas.cellArea[c];
-            const areaName = areaCustomName(areaId, puzzle.areaNames, areas);
-            const name = areaName && areaCentroidCell(areas.areaCells[areaId]) === c ? areaName : undefined;
             return (
               <>
-                {name && <span className="mk-area-name">{name}</span>}
                 {elEntry && visual && (
                   <span
                     className="mk-element-icon"

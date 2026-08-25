@@ -125,3 +125,24 @@
 .mk-window-edge.mk-editable.mk-window:hover {
   background: #74c0fc;
 }
+
+.mk-area-name {
+  align-self: end;
+  justify-self: center;
+  transform: translateY(100%);
+  width: max-content;
+  max-width: 100%;
+  margin-top: 2px;
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: #1a1a1a;
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  border-radius: 4px;
+  padding: 1px 6px;
+  pointer-events: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  z-index: 5;
+}
