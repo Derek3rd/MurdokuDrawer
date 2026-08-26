@@ -10,7 +10,7 @@ import { areaBottomLabelAnchor, areaCentroidCell, computeAreas, isWallBetween } 
 import { areaLabel, areaDisplayName, areaCustomName } from '../lib/areaLabel';
 import { describeClue } from '../lib/describeClue';
 import { downloadPuzzleAsFile } from '../storage/puzzleStorage';
-import { elementConnections, fixedFootprintGroups, isCornerDiagonalFilled, resolveElementVisual } from '../lib/elementShape';
+import { elementConnections, fixedFootprintGroups, isCornerDiagonalFilled, resolveElementVisual, tCornersFilled } from '../lib/elementShape';
 import {
   cellId,
   ELEMENT_CATALOG,
@@ -505,7 +505,9 @@ export default function EditorPage() {
             const elEntry = el ? resolveElementType(el.type, puzzle.customElementTypes) : undefined;
             const connections = el ? elementConnections(el, puzzle.elements) : [];
             const diagonalFilled = el ? isCornerDiagonalFilled(el, puzzle.elements, connections) : false;
-            const visual = el && elEntry ? resolveElementVisual(elEntry, connections, diagonalFilled) : undefined;
+            const tFilledFlanks = el ? tCornersFilled(el, puzzle.elements, connections) : undefined;
+            const visual =
+              el && elEntry ? resolveElementVisual(elEntry, connections, diagonalFilled, tFilledFlanks) : undefined;
             const sus = suspectAt(c);
             const isVictimHere = puzzle.victim.solutionCellId === c;
             return (

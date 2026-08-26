@@ -30,7 +30,12 @@ export type Direction = 'N' | 'S' | 'E' | 'O';
  * incroci a T/croce), ogni cella mostra la variante giusta in base a quante e quali celle
  * adiacenti dello stesso oggetto tocca, ruotata di conseguenza (vedi elementShape.ts). Codici
  * (per riferimento nei nomi file): 0=isolata, 1=capImage, 2=cornerImage, 22=filledCornerImage,
- * 3=tImage, 4=crossImage, 6=straightImage.
+ * 3=tImage, 3e/3o/3eo=tImageFilledE/tImageFilledO/tImageFilledBoth, 4=crossImage, 6=straightImage.
+ * Un incrocio a T ha un solo lato "chiuso" (senza collegamento) e due angoli ambigui, opposti al
+ * lato chiuso: ognuno va pieno se la cella diagonale in quell'angolo fa parte dello stesso
+ * oggetto (stessa idea di 22, ma con due angoli indipendenti invece di uno solo). Nell'orientamento
+ * a rotazione 0° (tImage collega Nord+Est+Ovest, lato chiuso a Sud) "e" indica l'angolo Nord-Est
+ * pieno e "o" l'angolo Nord-Ovest pieno; "3eo" (o "3oe") indica entrambi pieni.
  * Un tipo con `fixedFootprintImages` è invece un oggetto "a impronta fissa": una sola immagine
  * copre l'intero rettangolo WxH (es. un letto 2x1), senza varianti per cella né rotazione CSS.
  */
@@ -54,8 +59,12 @@ interface ElementCatalogEntry {
    */
   filledCornerImage?: string;
   straightImage?: string;
-  /** Incrocio a T (tre collegamenti). */
+  /** Incrocio a T (tre collegamenti), nessuno dei due angoli ambigui pieno. */
   tImage?: string;
+  /** Varianti di tImage con uno o entrambi gli angoli ambigui pieni (vedi commento sopra il catalogo). */
+  tImageFilledE?: string;
+  tImageFilledO?: string;
+  tImageFilledBoth?: string;
   /** Incrocio a croce (quattro collegamenti): sempre simmetrico, nessuna rotazione. */
   crossImage?: string;
   /**
@@ -89,6 +98,8 @@ interface ElementCatalogEntry {
 //   - "WxH" (es. "2x1")     -> oggetto ad impronta fissa, immagine unica per quella taglia
 //   - "1"/"2"/"22"/"3"/"4"/"6" -> variante a rotazione CSS (cap/corner/filledCorner/T/cross/straight,
 //                                 vedi elementShape.ts), immagine unica ruotata via CSS
+//   - "3e"/"3o"/"3eo" (o "3oe") -> varianti di "3" (incrocio a T) con uno o entrambi gli angoli
+//                                 ambigui pieni invece che cavi (vedi commento sul catalogo sopra)
 //   - lettere tra n/e/s/w (es. "ne", "ew")  -> variante già orientata per quella combinazione di
 //                                 collegamenti (N/E/S/O, "w" = ovest), nessuna rotazione CSS
 // "_o" finale (prima di ".svg", su una qualsiasi variante) marca l'oggetto come occupabile da un
@@ -165,6 +176,15 @@ function buildAutoCatalog(): Map<string, AutoCatalogEntry> {
       (entry as unknown as Record<string, unknown>)[shapeField] = url;
       continue;
     }
+    const tFilledMatch = variant.match(/^3([eo]{1,2})$/);
+    if (tFilledMatch) {
+      const letters = new Set(tFilledMatch[1].split(''));
+      if (letters.size === tFilledMatch[1].length) {
+        const field = letters.has('e') && letters.has('o') ? 'tImageFilledBoth' : letters.has('e') ? 'tImageFilledE' : 'tImageFilledO';
+        (entry as unknown as Record<string, unknown>)[field] = url;
+        continue;
+      }
+    }
     if (/^[nesw]+$/.test(variant)) {
       const key = directionalConnectionKey(variant);
       if (key) entry.shapesByConnections = { ...entry.shapesByConnections, [key]: url };
@@ -238,6 +258,9 @@ export interface CustomElementType {
   filledCornerImage?: string;
   straightImage?: string;
   tImage?: string;
+  tImageFilledE?: string;
+  tImageFilledO?: string;
+  tImageFilledBoth?: string;
   crossImage?: string;
   capImageByDirection?: Partial<Record<Direction, string>>;
   shapesByConnections?: Partial<Record<string, string>>;
@@ -256,6 +279,9 @@ export interface ResolvedElementType {
   filledCornerImage?: string;
   straightImage?: string;
   tImage?: string;
+  tImageFilledE?: string;
+  tImageFilledO?: string;
+  tImageFilledBoth?: string;
   crossImage?: string;
   capImageByDirection?: Partial<Record<Direction, string>>;
   shapesByConnections?: Partial<Record<string, string>>;
@@ -277,6 +303,9 @@ export function resolveElementType(type: string, customTypes: CustomElementType[
     filledCornerImage: custom.filledCornerImage,
     straightImage: custom.straightImage,
     tImage: custom.tImage,
+    tImageFilledE: custom.tImageFilledE,
+    tImageFilledO: custom.tImageFilledO,
+    tImageFilledBoth: custom.tImageFilledBoth,
     crossImage: custom.crossImage,
     capImageByDirection: custom.capImageByDirection,
     fixedFootprintImages: custom.fixedFootprintImages,
