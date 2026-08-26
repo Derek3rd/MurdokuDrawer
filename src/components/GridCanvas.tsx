@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
-import { cellId, parseCellId, type CellId, type Direction, type WindowEdge } from '../types/puzzle';
+import { cellId, type CellId, type Direction, type WindowEdge } from '../types/puzzle';
 import { computeAreas, isWallBetween } from '../lib/grid';
 import type { Puzzle } from '../types/puzzle';
 import iconCroce from '../assets/ui/croce.svg';
@@ -51,13 +51,7 @@ interface GridCanvasProps {
   disabledCellsHidden?: boolean;
 }
 
-function edgeFromElement(el: Element | null): Edge | null {
-  if (!(el instanceof HTMLElement)) return null;
-  const side = el.dataset.side;
-  const cell = el.dataset.cell;
-  if ((side === 'right' || side === 'bottom') && cell) return { side, cell };
-  return null;
-}
+type Vertex = { vx: number; vy: number };
 
 function cellIdFromElement(el: Element | null): CellId | null {
   // Usa closest() perché il punto puntato può cadere su un figlio della cella (icona, badge...).
@@ -95,13 +89,19 @@ export function GridCanvas({
   const areaIndex = new Map(areas.areaIds.map((id, i) => [id, i]));
   const disabledSet = new Set(puzzle.disabledCells ?? []);
   const windowSet = new Set(windows.map((w) => `${w.cellId}:${w.side}`));
-  const dragRef = useRef<{ active: boolean; visited: Set<string> } | null>(null);
+  const gridElRef = useRef<HTMLDivElement>(null);
   const pressRef = useRef<{ cell: CellId; timer: number | null; longFired: boolean; x: number; y: number } | null>(
     null,
   );
   const [pressingCell, setPressingCell] = useState<CellId | null>(null);
   const elementDragRef = useRef<{ active: boolean; path: CellId[]; cursor: CellId } | null>(null);
   const [elementDragPath, setElementDragPath] = useState<CellId[]>([]);
+  // Trascinamento muri: solo linee dritte da incrocio a incrocio della griglia (vedi
+  // wallsAlongLine/applyWallLine più sotto). `vertexDragRef` traccia il gesto in corso;
+  // `selectedVertex` permette in alternativa di selezionare due incroci con due tap separati.
+  const vertexDragRef = useRef<{ start: Vertex; moved: boolean } | null>(null);
+  const [selectedVertex, setSelectedVertex] = useState<Vertex | null>(null);
+  const [previewLine, setPreviewLine] = useState<{ a: Vertex; b: Vertex } | null>(null);
 
   // Dimensione delle celle in px, calcolata (non "1fr"+aspect-ratio sul contenitore) così restano
   // sempre quadrate anche con griglie non quadrate (larghezza celle diversa dall'altezza celle):
@@ -121,64 +121,96 @@ export function GridCanvas({
   const containerWidthPx = cellSize * width + gapTotalW;
   const containerHeightPx = cellSize * height + gapTotalH;
 
-  const paintEdge = (edge: Edge) => {
-    const key = `${edge.side}:${edge.cell}`;
-    if (dragRef.current?.visited.has(key)) return;
-    dragRef.current?.visited.add(key);
-    onEdgeClick?.(edge);
+  // Posizione in px di ogni incrocio (vertice) della griglia lungo ciascun asse, calcolata dalle
+  // stesse dimensioni (cellSize/GAP/PERI_GAP) usate per le tracce della griglia: il vertice vx
+  // (0..width) è il centro della fascia GAP/PERI_GAP tra la cella vx-1 e la cella vx.
+  const vertexXs = Array.from({ length: width + 1 }, (_, vx) =>
+    vx === 0 ? PERI_GAP / 2 : vx === width ? containerWidthPx - PERI_GAP / 2 : PERI_GAP + vx * cellSize + (vx - 1) * GAP + GAP / 2,
+  );
+  const vertexYs = Array.from({ length: height + 1 }, (_, vy) =>
+    vy === 0 ? PERI_GAP / 2 : vy === height ? containerHeightPx - PERI_GAP / 2 : PERI_GAP + vy * cellSize + (vy - 1) * GAP + GAP / 2,
+  );
+
+  const nearestIndex = (pos: number, positions: number[]): number =>
+    positions.reduce((best, val, i) => (Math.abs(val - pos) < Math.abs(positions[best] - pos) ? i : best), 0);
+
+  /** Incrocio della griglia più vicino al punto puntato, in coordinate schermo. */
+  const nearestVertex = (clientX: number, clientY: number): Vertex | null => {
+    const rect = gridElRef.current?.getBoundingClientRect();
+    if (!rect) return null;
+    return { vx: nearestIndex(clientX - rect.left, vertexXs), vy: nearestIndex(clientY - rect.top, vertexYs) };
   };
 
-  // Trova il muro più vicino al punto puntato: se il punto cade esattamente sulla fascia
-  // sottile di un .mk-edge la usa direttamente, altrimenti (il caso più comune, dato che i muri
-  // sono spessi solo pochi px) trova la cella più vicina e sceglie il suo lato più vicino al
-  // punto. Così trascinare per disegnare muri dritti non richiede più di restare esattamente
-  // sulla fascia cliccabile: basta restare "abbastanza vicini" a dove passerebbe il muro.
-  const resolveEdgeNear = (clientX: number, clientY: number): Edge | null => {
-    const el = document.elementFromPoint(clientX, clientY);
-    const direct = edgeFromElement(el);
-    if (direct) return direct;
-    const cellEl = el?.closest('[data-cell-id]');
-    if (!(cellEl instanceof HTMLElement)) return null;
-    const cid = cellEl.dataset.cellId;
-    if (!cid || disabledSet.has(cid)) return null;
-    const rect = cellEl.getBoundingClientRect();
-    const dx = clientX - rect.left;
-    const dy = clientY - rect.top;
-    const distances = { right: rect.width - dx, left: dx, bottom: rect.height - dy, top: dy };
-    const nearest = (Object.keys(distances) as (keyof typeof distances)[]).reduce((a, b) =>
-      distances[a] <= distances[b] ? a : b,
-    );
-    const { row, col } = parseCellId(cid);
-    if (nearest === 'right') {
-      if (col === width - 1 || disabledSet.has(cellId(row, col + 1))) return null;
-      return { side: 'right', cell: cid };
+  /** Vincola `current` sulla stessa riga o sulla stessa colonna di `start` (solo linee dritte),
+   * scegliendo l'asse dominante dello spostamento. */
+  const snapToAxis = (start: Vertex, current: Vertex): Vertex => {
+    const dx = current.vx - start.vx;
+    const dy = current.vy - start.vy;
+    return Math.abs(dx) >= Math.abs(dy) ? { vx: current.vx, vy: start.vy } : { vx: start.vx, vy: current.vy };
+  };
+
+  /** Muri toccati da una linea dritta (orizzontale o verticale) tra due incroci; vuoto se i due
+   * incroci non sono allineati, se l'asse costante è sul bordo esterno (nessun muro possibile lì)
+   * o se un tratto tocca una cella disattivata (quel confine è una finestra, non un muro). */
+  const wallsAlongLine = (a: Vertex, b: Vertex): Edge[] => {
+    const edges: Edge[] = [];
+    if (a.vx === b.vx && a.vy !== b.vy) {
+      const vx = a.vx;
+      if (vx <= 0 || vx >= width) return [];
+      const yMin = Math.min(a.vy, b.vy);
+      const yMax = Math.max(a.vy, b.vy);
+      for (let y = yMin; y < yMax; y++) {
+        const left = cellId(y, vx - 1);
+        const right = cellId(y, vx);
+        if (disabledSet.has(left) || disabledSet.has(right)) continue;
+        edges.push({ side: 'right', cell: left });
+      }
+    } else if (a.vy === b.vy && a.vx !== b.vx) {
+      const vy = a.vy;
+      if (vy <= 0 || vy >= height) return [];
+      const xMin = Math.min(a.vx, b.vx);
+      const xMax = Math.max(a.vx, b.vx);
+      for (let x = xMin; x < xMax; x++) {
+        const top = cellId(vy - 1, x);
+        const bottom = cellId(vy, x);
+        if (disabledSet.has(top) || disabledSet.has(bottom)) continue;
+        edges.push({ side: 'bottom', cell: top });
+      }
     }
-    if (nearest === 'bottom') {
-      if (row === height - 1 || disabledSet.has(cellId(row + 1, col))) return null;
-      return { side: 'bottom', cell: cid };
+    return edges;
+  };
+
+  const isWallSet = (edge: Edge): boolean =>
+    (edge.side === 'right' ? puzzle.wallsRight : puzzle.wallsBottom).includes(edge.cell);
+
+  /** Applica una linea di muri: se il primo tratto è già muro li toglie tutti, altrimenti li
+   * aggiunge tutti (come un pennello, coerente su tutta la linea in un colpo solo). */
+  const applyWallLine = (a: Vertex, b: Vertex) => {
+    const edges = wallsAlongLine(a, b);
+    if (edges.length === 0) return;
+    const shouldAdd = !isWallSet(edges[0]);
+    for (const edge of edges) {
+      if (isWallSet(edge) !== shouldAdd) onEdgeClick?.(edge);
     }
-    if (nearest === 'left') {
-      if (col === 0 || disabledSet.has(cellId(row, col - 1))) return null;
-      return { side: 'right', cell: cellId(row, col - 1) };
-    }
-    if (row === 0 || disabledSet.has(cellId(row - 1, col))) return null;
-    return { side: 'bottom', cell: cellId(row - 1, col) };
   };
 
   const handlePointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
     if (!editableWalls) return;
-    const edge = resolveEdgeNear(e.clientX, e.clientY);
-    if (!edge) return;
+    const v = nearestVertex(e.clientX, e.clientY);
+    if (!v) return;
     e.preventDefault();
-    dragRef.current = { active: true, visited: new Set() };
-    paintEdge(edge);
+    vertexDragRef.current = { start: v, moved: false };
+    setPreviewLine({ a: v, b: v });
   };
 
   const handlePointerMove = (e: ReactPointerEvent<HTMLDivElement>) => {
-    if (dragRef.current?.active) {
+    if (vertexDragRef.current) {
       e.preventDefault();
-      const edge = resolveEdgeNear(e.clientX, e.clientY);
-      if (edge) paintEdge(edge);
+      const v = nearestVertex(e.clientX, e.clientY);
+      if (!v) return;
+      const { start } = vertexDragRef.current;
+      if (v.vx !== start.vx || v.vy !== start.vy) vertexDragRef.current.moved = true;
+      setPreviewLine({ a: start, b: snapToAxis(start, v) });
       return;
     }
     if (elementDragRef.current?.active) {
@@ -214,7 +246,30 @@ export function GridCanvas({
   };
 
   const endDrag = () => {
-    if (dragRef.current) dragRef.current.active = false;
+    if (vertexDragRef.current) {
+      const { start, moved } = vertexDragRef.current;
+      const end = previewLine?.b ?? start;
+      vertexDragRef.current = null;
+      setPreviewLine(null);
+      if (moved) {
+        // Trascinamento: applica subito la linea (vincolata all'asse dominante in handlePointerMove).
+        applyWallLine(start, end);
+        setSelectedVertex(null);
+      } else if (!selectedVertex) {
+        // Primo tap: seleziona questo incrocio, in attesa del secondo per completare la linea.
+        setSelectedVertex(start);
+      } else if (selectedVertex.vx === start.vx && selectedVertex.vy === start.vy) {
+        // Ri-tap sullo stesso incrocio già selezionato: deseleziona (ripensamento).
+        setSelectedVertex(null);
+      } else if (selectedVertex.vx === start.vx || selectedVertex.vy === start.vy) {
+        // Secondo tap allineato (stessa riga o colonna): completa la linea tra i due punti.
+        applyWallLine(selectedVertex, start);
+        setSelectedVertex(null);
+      } else {
+        // Secondo tap non allineato: diventa il nuovo punto di partenza, invece di annullare tutto.
+        setSelectedVertex(start);
+      }
+    }
     if (elementDragRef.current?.active) {
       const path = elementDragRef.current.path;
       elementDragRef.current = null;
@@ -288,6 +343,17 @@ export function GridCanvas({
     );
   };
 
+  // Anteprima della linea di muri in corso di trascinamento: mappa "side:cell" -> se il rilascio
+  // aggiungerebbe (true) o toglierebbe (false) quel muro, per colorare i tratti coinvolti.
+  const previewEdges = new Map<string, boolean>();
+  if (previewLine) {
+    const edges = wallsAlongLine(previewLine.a, previewLine.b);
+    if (edges.length > 0) {
+      const shouldAdd = !isWallSet(edges[0]);
+      for (const edge of edges) previewEdges.set(`${edge.side}:${edge.cell}`, shouldAdd);
+    }
+  }
+
   const cells = [];
   for (let r = 0; r < height; r++) {
     for (let c = 0; c < width; c++) {
@@ -330,13 +396,12 @@ export function GridCanvas({
           cells.push(windowEdge(activeId, side, 2 * r + 2, 2 * c + 3));
         } else {
           const hasWall = puzzle.wallsRight.includes(id);
+          const preview = previewEdges.get(`right:${id}`);
           cells.push(
             <div
               key={`${id}-r`}
-              className={`mk-edge mk-edge-v ${hasWall ? 'mk-wall' : ''} ${editableWalls ? 'mk-editable' : ''}`}
+              className={`mk-edge mk-edge-v ${hasWall ? 'mk-wall' : ''} ${editableWalls ? 'mk-editable' : ''} ${preview === true ? 'mk-edge-preview-add' : ''} ${preview === false ? 'mk-edge-preview-remove' : ''}`}
               style={{ gridRow: 2 * r + 2, gridColumn: 2 * c + 3 }}
-              data-side="right"
-              data-cell={id}
             />,
           );
         }
@@ -352,13 +417,12 @@ export function GridCanvas({
           cells.push(windowEdge(activeId, side, 2 * r + 3, 2 * c + 2));
         } else {
           const hasWall = puzzle.wallsBottom.includes(id);
+          const preview = previewEdges.get(`bottom:${id}`);
           cells.push(
             <div
               key={`${id}-b`}
-              className={`mk-edge mk-edge-h ${hasWall ? 'mk-wall' : ''} ${editableWalls ? 'mk-editable' : ''}`}
+              className={`mk-edge mk-edge-h ${hasWall ? 'mk-wall' : ''} ${editableWalls ? 'mk-editable' : ''} ${preview === true ? 'mk-edge-preview-add' : ''} ${preview === false ? 'mk-edge-preview-remove' : ''}`}
               style={{ gridRow: 2 * r + 3, gridColumn: 2 * c + 2 }}
-              data-side="bottom"
-              data-cell={id}
             />,
           );
         }
@@ -369,6 +433,28 @@ export function GridCanvas({
         if (r === height - 1) cells.push(windowEdge(id, 'S', 2 * height + 1, 2 * c + 2));
         if (c === 0) cells.push(windowEdge(id, 'O', 2 * r + 2, 1));
         if (c === width - 1) cells.push(windowEdge(id, 'E', 2 * r + 2, 2 * width + 1));
+      }
+    }
+  }
+
+  // Pallini sugli incroci della griglia: punti di aggancio per il trascinamento/selezione dei
+  // muri (solo linee dritte tra due incroci, vedi handlePointerDown/wallsAlongLine). Elementi
+  // a parte, puramente visivi (l'interazione è gestita a livello di .mk-grid via nearestVertex),
+  // quindi pointer-events:none.
+  if (editableWalls) {
+    for (let vy = 0; vy <= height; vy++) {
+      for (let vx = 0; vx <= width; vx++) {
+        const isSelected = selectedVertex?.vx === vx && selectedVertex?.vy === vy;
+        const isEndpoint = previewLine && ((previewLine.a.vx === vx && previewLine.a.vy === vy) || (previewLine.b.vx === vx && previewLine.b.vy === vy));
+        cells.push(
+          <div
+            key={`vertex-${vx}-${vy}`}
+            data-vx={vx}
+            data-vy={vy}
+            className={`mk-vertex ${isSelected ? 'mk-vertex-selected' : ''} ${isEndpoint ? 'mk-vertex-endpoint' : ''}`}
+            style={{ gridRow: 2 * vy + 1, gridColumn: 2 * vx + 1 }}
+          />,
+        );
       }
     }
   }
@@ -407,6 +493,7 @@ export function GridCanvas({
 
   return (
     <div
+      ref={gridElRef}
       className="mk-grid"
       style={
         {

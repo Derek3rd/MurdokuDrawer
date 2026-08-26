@@ -123,6 +123,37 @@
   background: #333;
 }
 
+.mk-edge.mk-edge-preview-add {
+  background: #2a9d8f;
+}
+
+.mk-edge.mk-edge-preview-remove {
+  background: #e76f51;
+}
+
+/*
+ * Pallini sugli incroci della griglia: punti di aggancio per trascinare o selezionare una linea
+ * di muri (solo dritte, tra due incroci). Puramente visivi (pointer-events:none, l'interazione è
+ * gestita a livello di .mk-grid), ingranditi per il punto selezionato/gli estremi dell'anteprima.
+ */
+.mk-vertex {
+  position: relative;
+  z-index: 6;
+  pointer-events: none;
+  width: 8px;
+  height: 8px;
+  margin: auto;
+  border-radius: 50%;
+  background: rgba(26, 26, 26, 0.35);
+}
+
+.mk-vertex-selected,
+.mk-vertex-endpoint {
+  width: 12px;
+  height: 12px;
+  background: #2a9d8f;
+}
+
 .mk-window-edge {
   /* Nero di default: è questa fascia, non un bordo fisso sul contenitore, a disegnare il
      perimetro della mappa giocabile (segue esattamente il contorno, incluse celle mancanti). */

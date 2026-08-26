@@ -527,7 +527,7 @@ export default function EditorPage() {
         />
         <p style={{ textAlign: 'center', fontSize: '0.85rem', color: '#666' }}>
           {tool === 'walls' && wallSubTool === 'walls' &&
-            "Trascina tra le celle per disegnare o cancellare i muri interni. Dai un nome alle aree nell'elenco qui sotto."}
+            "Trascina da un incrocio della griglia a un altro (solo linee dritte, orizzontali o verticali) per disegnare o cancellare i muri tra i due punti in un colpo solo. In alternativa, clicca un incrocio e poi un altro allineato per selezionarli allo stesso modo. Dai un nome alle aree nell'elenco qui sotto."}
           {tool === 'walls' && wallSubTool === 'cells' &&
             'Clicca una cella per attivarla o disattivarla (per creare griglie non rettangolari).'}
           {tool === 'walls' && wallSubTool === 'windows' &&
