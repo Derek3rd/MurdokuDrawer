@@ -9,7 +9,7 @@ import { loadPuzzle } from '../storage/puzzleStorage';
 import { areaBottomLabelAnchor, computeAreas } from '../lib/grid';
 import { describeClue } from '../lib/describeClue';
 import { areaCustomName, areaDisplayName } from '../lib/areaLabel';
-import { elementConnections, fixedFootprintGroups, isCornerDiagonalFilled, resolveElementVisual } from '../lib/elementShape';
+import { elementConnections, fixedFootprintGroups, isCornerDiagonalFilled, resolveElementVisual, tCornersFilled } from '../lib/elementShape';
 import { isMultiCellType, parseCellId, resolveElementType, type CellId, type Puzzle } from '../types/puzzle';
 
 /** Chiave riservata usata per la vittima nelle mappe confirmed/candidates, come un sospettato in più. */
@@ -279,7 +279,9 @@ export default function PlayPage() {
             const elEntry = el ? resolveElementType(el.type, puzzle.customElementTypes) : undefined;
             const connections = el ? elementConnections(el, puzzle.elements) : [];
             const diagonalFilled = el ? isCornerDiagonalFilled(el, puzzle.elements, connections) : false;
-            const visual = el && elEntry ? resolveElementVisual(elEntry, connections, diagonalFilled) : undefined;
+            const tFilledFlanks = el ? tCornersFilled(el, puzzle.elements, connections) : undefined;
+            const visual =
+              el && elEntry ? resolveElementVisual(elEntry, connections, diagonalFilled, tFilledFlanks) : undefined;
             const confirmedSuspect = puzzle.suspects.find((s) => confirmed[s.id] === c);
             const victimConfirmedHere = !confirmedSuspect && confirmed[VICTIM_ID] === c;
             const candidateIds = playState.candidates[c] ?? [];

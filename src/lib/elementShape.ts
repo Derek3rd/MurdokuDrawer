@@ -7,6 +7,8 @@ const NEIGHBOR_DELTAS: Record<Direction, [number, number]> = {
   O: [0, -1],
 };
 
+const OPPOSITE: Record<Direction, Direction> = { N: 'S', S: 'N', E: 'O', O: 'E' };
+
 /** Direzioni (N/S/E/O) verso celle adiacenti che condividono lo stesso groupId+type dell'elemento. */
 export function elementConnections(element: MapElement, elements: MapElement[]): Direction[] {
   if (!element.groupId) return [];
@@ -47,6 +49,35 @@ export function isCornerDiagonalFilled(element: MapElement, elements: MapElement
   const { row, col } = parseCellId(element.cellId);
   const diagonalId = cellId(row + dr, col + dc);
   return elements.some((e) => e.cellId === diagonalId && e.groupId === element.groupId && e.type === element.type);
+}
+
+/**
+ * Per una cella a incrocio a T (esattamente tre collegamenti, quindi un solo lato "chiuso" senza
+ * collegamento), controlla indipendentemente i due angoli opposti al lato chiuso: ognuno è tra lo
+ * "stelo" (il lato opposto a quello chiuso) e uno dei due lati laterali aperti, e va disegnato
+ * "pieno" se la cella diagonale in quell'angolo fa anch'essa parte dello stesso oggetto (stessa
+ * idea di isCornerDiagonalFilled, generalizzata: qui gli angoli ambigui sono due, non uno solo,
+ * perché tre lati su quattro sono aperti). Restituisce l'insieme dei lati laterali (direzioni
+ * assolute, non relative alla rotazione) il cui angolo risulta pieno.
+ */
+export function tCornersFilled(element: MapElement, elements: MapElement[], connections: Direction[]): Set<Direction> {
+  const set = new Set(connections);
+  const filled = new Set<Direction>();
+  if (set.size !== 3 || !element.groupId) return filled;
+  const missing = (['N', 'E', 'S', 'O'] as Direction[]).find((d) => !set.has(d));
+  if (!missing) return filled;
+  const stem = OPPOSITE[missing];
+  const flanks = (['N', 'E', 'S', 'O'] as Direction[]).filter((d) => d !== missing && d !== stem);
+  const { row, col } = parseCellId(element.cellId);
+  const [stemDr, stemDc] = NEIGHBOR_DELTAS[stem];
+  for (const flank of flanks) {
+    const [flankDr, flankDc] = NEIGHBOR_DELTAS[flank];
+    const diagonalId = cellId(row + stemDr + flankDr, col + stemDc + flankDc);
+    if (elements.some((e) => e.cellId === diagonalId && e.groupId === element.groupId && e.type === element.type)) {
+      filled.add(flank);
+    }
+  }
+  return filled;
 }
 
 export interface FixedFootprintGroup {
@@ -148,6 +179,8 @@ const BASE_CORNER: Direction[] = ['N', 'E'];
 const BASE_STRAIGHT: Direction[] = ['N', 'S'];
 const BASE_T: Direction[] = ['N', 'E', 'O'];
 
+const EMPTY_DIRECTION_SET: Set<Direction> = new Set();
+
 /**
  * Sceglie la variante (isolata/estremità/angolo/dritto/incrocio a T/croce) e la rotazione da
  * applicare in base a come la cella si collega alle celle adiacenti dello stesso oggetto
@@ -158,6 +191,7 @@ export function resolveElementVisual(
   entry: ResolvedElementType,
   connections: Direction[],
   diagonalFilled = false,
+  tFilledFlanks: Set<Direction> = EMPTY_DIRECTION_SET,
 ): ElementVisual {
   const set = new Set(connections);
   const isolated: ElementVisual = { image: entry.image, icon: entry.icon, rotationDeg: 0 };
@@ -194,9 +228,19 @@ export function resolveElementVisual(
   }
 
   if (set.size === 3) {
-    if (entry.tImage) {
-      const steps = findRotationSteps(BASE_T, set);
-      if (steps !== null) return { image: entry.tImage, icon: entry.icon, rotationDeg: steps * 90 };
+    const steps = findRotationSteps(BASE_T, set);
+    if (steps !== null) {
+      // BASE_T = ['N','E','O']: i due angoli ambigui sono tra lo stelo N e ciascuno dei due lati
+      // laterali E/O. Dopo la rotazione, il lato laterale base E/O corrisponde alla direzione
+      // reale rotateDirCW('E'/'O', steps): controlliamo lì se quell'angolo è pieno.
+      const eFilled = tFilledFlanks.has(rotateDirCW('E', steps));
+      const oFilled = tFilledFlanks.has(rotateDirCW('O', steps));
+      const tImage =
+        (eFilled && oFilled && entry.tImageFilledBoth) ||
+        (eFilled && !oFilled && entry.tImageFilledE) ||
+        (!eFilled && oFilled && entry.tImageFilledO) ||
+        entry.tImage;
+      if (tImage) return { image: tImage, icon: entry.icon, rotationDeg: steps * 90 };
     }
     return isolated;
   }
