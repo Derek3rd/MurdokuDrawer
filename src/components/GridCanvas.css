@@ -93,6 +93,25 @@
   box-shadow: inset 0 0 0 999px rgba(42, 157, 143, 0.3);
 }
 
+/*
+ * Evidenza delle celle/aree nominate nel testo di un indizio (vedi lib/clueHighlight.ts):
+ * verde per un riferimento "positivo" (es. "è nell'area cucina"), arancio per uno "negativo"
+ * (es. "non era in cucina"). Disegnata solo sul perimetro esterno dell'insieme di celle
+ * evidenziate (vedi regionBoundaryColor in GridCanvas.tsx), non su ogni singola cella: così
+ * un'area evidenziata appare come un'unica zona contornata invece di tante celle bordate.
+ */
+.mk-region-edge {
+  pointer-events: none;
+}
+
+.mk-region-edge-positive {
+  background: #2a9d8f;
+}
+
+.mk-region-edge-negative {
+  background: #e76f51;
+}
+
 .mk-cell-disabled {
   background: repeating-linear-gradient(45deg, #d8d8d8, #d8d8d8 6px, #ececec 6px, #ececec 12px);
 }

@@ -7,7 +7,6 @@ import {
   type Clue,
   type CustomElementType,
   type Direction,
-  type DistributiveOmit,
   type GlobalRule,
   type Puzzle,
   type Suspect,
@@ -41,11 +40,12 @@ interface EditorState {
   renameSuspect: (suspectId: string, name: string) => void;
   setVictimSolution: (cellId: string | null) => void;
   setKiller: (suspectId: string | null) => void;
-  addClue: (clue: DistributiveOmit<Clue, 'id'>) => void;
+  addClue: (clue: Omit<Clue, 'id'>) => void;
   updateClue: (id: string, patch: Partial<Clue>) => void;
   removeClue: (id: string) => void;
   clearCluesForSuspect: (suspectId: string) => void;
-  addGlobalRule: (rule: DistributiveOmit<GlobalRule, 'id'>) => void;
+  addGlobalRule: (rule: Omit<GlobalRule, 'id'>) => void;
+  updateGlobalRule: (id: string, patch: Partial<GlobalRule>) => void;
   removeGlobalRule: (id: string) => void;
 }
 
@@ -203,9 +203,6 @@ export const useEditorStore = create<EditorState>((set) => ({
       puzzle: persist({
         ...s.puzzle,
         elements: s.puzzle.elements.filter((e) => e.id !== id),
-        clues: s.puzzle.clues.filter(
-          (c) => !((c.type === 'onElement' || c.type === 'nearElement') && c.elementId === id),
-        ),
       }),
     })),
 
@@ -221,20 +218,13 @@ export const useEditorStore = create<EditorState>((set) => ({
   },
 
   removeCustomElementType: (id) =>
-    set((s) => {
-      const removedElementIds = s.puzzle.elements.filter((e) => e.type === id).map((e) => e.id);
-      return {
-        puzzle: persist({
-          ...s.puzzle,
-          customElementTypes: s.puzzle.customElementTypes.filter((c) => c.id !== id),
-          elements: s.puzzle.elements.filter((e) => e.type !== id),
-          clues: s.puzzle.clues.filter(
-            (c) =>
-              !((c.type === 'onElement' || c.type === 'nearElement') && removedElementIds.includes(c.elementId)),
-          ),
-        }),
-      };
-    }),
+    set((s) => ({
+      puzzle: persist({
+        ...s.puzzle,
+        customElementTypes: s.puzzle.customElementTypes.filter((c) => c.id !== id),
+        elements: s.puzzle.elements.filter((e) => e.type !== id),
+      }),
+    })),
 
   setAreaName: (cellId, name) =>
     set((s) => {
@@ -271,14 +261,14 @@ export const useEditorStore = create<EditorState>((set) => ({
 
   addClue: (clue) =>
     set((s) => ({
-      puzzle: persist({ ...s.puzzle, clues: [...s.puzzle.clues, { ...clue, id: crypto.randomUUID() } as Clue] }),
+      puzzle: persist({ ...s.puzzle, clues: [...s.puzzle.clues, { ...clue, id: crypto.randomUUID() }] }),
     })),
 
   updateClue: (id, patch) =>
     set((s) => ({
       puzzle: persist({
         ...s.puzzle,
-        clues: s.puzzle.clues.map((c) => (c.id === id ? ({ ...c, ...patch } as Clue) : c)),
+        clues: s.puzzle.clues.map((c) => (c.id === id ? { ...c, ...patch } : c)),
       }),
     })),
 
@@ -294,7 +284,15 @@ export const useEditorStore = create<EditorState>((set) => ({
     set((s) => ({
       puzzle: persist({
         ...s.puzzle,
-        globalRules: [...s.puzzle.globalRules, { ...rule, id: crypto.randomUUID() } as GlobalRule],
+        globalRules: [...s.puzzle.globalRules, { ...rule, id: crypto.randomUUID() }],
+      }),
+    })),
+
+  updateGlobalRule: (id, patch) =>
+    set((s) => ({
+      puzzle: persist({
+        ...s.puzzle,
+        globalRules: s.puzzle.globalRules.map((r) => (r.id === id ? { ...r, ...patch } : r)),
       }),
     })),
 

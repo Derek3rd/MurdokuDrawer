@@ -7,9 +7,6 @@
 // Le aree della mappa sono regioni di celle contigue delimitate da muri.
 // La vittima occupa sempre l'ultima cella libera nell'area del killer.
 
-/** Omit che si distribuisce sui membri di un tipo unione discriminata. */
-export type DistributiveOmit<T, K extends keyof T> = T extends unknown ? Omit<T, K> : never;
-
 export type CellId = string; // `${row}-${col}`
 
 export function cellId(row: number, col: number): CellId {
@@ -376,72 +373,23 @@ export interface Victim {
   solutionCellId: CellId | null;
 }
 
-interface ClueBase {
+/**
+ * Indizio: solo testo libero scritto dal designer (es. "Era accanto ad un albero"). Non c'è più
+ * una struttura a campi: il testo viene analizzato a runtime (vedi lib/clueHighlight.ts) per
+ * evidenziare in griglia le celle e le aree che nomina, così il motore resta generico invece di
+ * dover elencare in anticipo tutti i tipi di indizio possibili.
+ */
+export interface Clue {
   id: string;
   suspectId: string;
+  text: string;
 }
 
-export type ClueTargetType = 'suspect' | 'element' | 'cell';
-
-export interface DirectionClue extends ClueBase {
-  type: 'direction';
-  direction: Direction;
-  targetType: ClueTargetType;
-  targetId: string; // suspectId, elementId oppure CellId a seconda di targetType
-  /** Se true il sospettato deve essere immediatamente adiacente al target */
-  adjacent: boolean;
-}
-
-export interface InAreaClue extends ClueBase {
-  type: 'inArea';
-  areaId: string;
-}
-
-export interface OnElementClue extends ClueBase {
-  type: 'onElement';
-  elementId: string;
-}
-
-export interface NearElementClue extends ClueBase {
-  type: 'nearElement';
-  elementId: string;
-}
-
-export interface AloneClue extends ClueBase {
-  type: 'alone';
-}
-
-export interface TogetherClue extends ClueBase {
-  type: 'together';
-  otherSuspectId: string;
-}
-
-export type Clue =
-  | DirectionClue
-  | InAreaClue
-  | OnElementClue
-  | NearElementClue
-  | AloneClue
-  | TogetherClue;
-
-export interface AllAreasHaveSuspectRule {
+/** Indizio/regola generico, non legato a nessun sospettato in particolare (stesso trattamento di Clue). */
+export interface GlobalRule {
   id: string;
-  type: 'allAreasHaveSuspect';
+  text: string;
 }
-
-export interface EvenCountInAreasRule {
-  id: string;
-  type: 'evenCountInAreas';
-  areaIds: string[];
-}
-
-export interface CustomRule {
-  id: string;
-  type: 'custom';
-  description: string;
-}
-
-export type GlobalRule = AllAreasHaveSuspectRule | EvenCountInAreasRule | CustomRule;
 
 export interface Puzzle {
   id: string;

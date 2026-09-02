@@ -26,6 +26,13 @@ interface GridCanvasProps {
   cellClassName?: (cell: CellId) => string | undefined;
   /** Stile extra applicato alla cella (es. tinta di evidenziazione), oltre al colore d'area. */
   cellStyle?: (cell: CellId) => CSSProperties | undefined;
+  /**
+   * Evidenzia una cella come parte di una "regione" (es. le celle nominate da un indizio):
+   * invece di un bordo su ogni singola cella, viene disegnato un contorno solo sul perimetro
+   * esterno dell'insieme di celle con lo stesso valore, così un'area evidenziata appare come
+   * un'unica zona contornata invece di tante celle bordate singolarmente.
+   */
+  cellHighlight?: (cell: CellId) => 'positive' | 'negative' | undefined;
   /** Click/tap breve su una cella. */
   onCellClick?: (cell: CellId) => void;
   /** Pressione prolungata (long-press) su una cella. Se assente, le celle si comportano come un click semplice. */
@@ -71,6 +78,7 @@ export function GridCanvas({
   renderCell,
   cellClassName,
   cellStyle,
+  cellHighlight,
   onCellClick,
   onCellLongPress,
   elementDragMode = false,
@@ -354,6 +362,24 @@ export function GridCanvas({
     }
   }
 
+  // Colore di evidenziazione di una cella (undefined per le celle disattivate, che non fanno mai
+  // parte di una regione evidenziata).
+  const regionColorAt = (id: CellId | null): 'positive' | 'negative' | undefined =>
+    id && !disabledSet.has(id) ? cellHighlight?.(id) : undefined;
+
+  /** Colore del contorno da disegnare tra due celle affiancate (o tra una cella e il bordo esterno
+   * quando `thereId` è null): solo se i due lati hanno un'evidenziazione diversa (una sola delle
+   * due, o due valori diversi), così il contorno segue solo il perimetro esterno della regione. */
+  const regionBoundaryColor = (hereId: CellId, thereId: CellId | null): 'positive' | 'negative' | null => {
+    const a = regionColorAt(hereId);
+    const b = regionColorAt(thereId);
+    return a === b ? null : a ?? b ?? null;
+  };
+
+  const regionEdge = (key: string, color: 'positive' | 'negative', gridRow: number | string, gridColumn: number | string) => (
+    <div key={key} className={`mk-region-edge mk-region-edge-${color}`} style={{ gridRow, gridColumn }} />
+  );
+
   const cells = [];
   for (let r = 0; r < height; r++) {
     for (let c = 0; c < width; c++) {
@@ -405,6 +431,8 @@ export function GridCanvas({
             />,
           );
         }
+        const rColor = regionBoundaryColor(id, rightId);
+        if (rColor) cells.push(regionEdge(`${id}-hl-r`, rColor, 2 * r + 2, 2 * c + 3));
       }
       if (r < height - 1) {
         const bottomId = cellId(r + 1, c);
@@ -426,6 +454,8 @@ export function GridCanvas({
             />,
           );
         }
+        const bColor = regionBoundaryColor(id, bottomId);
+        if (bColor) cells.push(regionEdge(`${id}-hl-b`, bColor, 2 * r + 3, 2 * c + 2));
       }
 
       if (!isDisabled) {
@@ -433,6 +463,14 @@ export function GridCanvas({
         if (r === height - 1) cells.push(windowEdge(id, 'S', 2 * height + 1, 2 * c + 2));
         if (c === 0) cells.push(windowEdge(id, 'O', 2 * r + 2, 1));
         if (c === width - 1) cells.push(windowEdge(id, 'E', 2 * r + 2, 2 * width + 1));
+      }
+
+      const outerColor = regionBoundaryColor(id, null);
+      if (outerColor) {
+        if (r === 0) cells.push(regionEdge(`${id}-hl-N`, outerColor, 1, 2 * c + 2));
+        if (r === height - 1) cells.push(regionEdge(`${id}-hl-S`, outerColor, 2 * height + 1, 2 * c + 2));
+        if (c === 0) cells.push(regionEdge(`${id}-hl-O`, outerColor, 2 * r + 2, 1));
+        if (c === width - 1) cells.push(regionEdge(`${id}-hl-E`, outerColor, 2 * r + 2, 2 * width + 1));
       }
     }
   }

@@ -1,14 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { GridCanvas } from '../components/GridCanvas';
-import ClueForm from '../components/ClueForm';
 import CustomElementForm from '../components/CustomElementForm';
 import SuspectMarker from '../components/SuspectMarker';
 import { useEditorStore } from '../store/useEditorStore';
 import { areaColor } from '../components/GridCanvas';
 import { areaBottomLabelAnchor, areaCentroidCell, computeAreas, isWallBetween } from '../lib/grid';
-import { areaLabel, areaDisplayName, areaCustomName } from '../lib/areaLabel';
-import { describeClue } from '../lib/describeClue';
+import { areaLabel, areaCustomName } from '../lib/areaLabel';
 import { downloadPuzzleAsFile } from '../storage/puzzleStorage';
 import { elementConnections, fixedFootprintGroups, isCornerDiagonalFilled, resolveElementVisual, tCornersFilled } from '../lib/elementShape';
 import {
@@ -40,7 +38,7 @@ export default function EditorPage() {
   const { puzzle, loadPuzzleById, rename, resize, toggleWallRight, toggleWallBottom, toggleWindow,
     toggleCellDisabled, addElement, addElementChain, addElementToGroup, removeElement, addCustomElementType,
     removeCustomElementType, setAreaName, setSuspectSolution, renameSuspect, setVictimSolution, setKiller, addClue,
-    removeClue, clearCluesForSuspect, addGlobalRule, removeGlobalRule } =
+    updateClue, removeClue, clearCluesForSuspect, addGlobalRule, updateGlobalRule, removeGlobalRule } =
     useEditorStore();
 
   useEffect(() => {
@@ -52,7 +50,7 @@ export default function EditorPage() {
   const [selectedSuspectId, setSelectedSuspectId] = useState<string | null>(puzzle.suspects[0]?.id ?? null);
   const [selectedElementType, setSelectedElementType] = useState<string>(ELEMENT_CATALOG[0].type);
   const [showCustomElementForm, setShowCustomElementForm] = useState(false);
-  const [clueEditorFor, setClueEditorFor] = useState<string | null>(null);
+  const [newClueTextBySuspect, setNewClueTextBySuspect] = useState<Record<string, string>>({});
   const [customRuleText, setCustomRuleText] = useState('');
 
   const areas = useMemo(() => computeAreas(puzzle), [puzzle]);
@@ -623,15 +621,25 @@ export default function EditorPage() {
 
       <section className="mk-card">
         <h2>Indizi</h2>
+        <p style={{ fontSize: '0.85rem', color: '#666' }}>
+          Testo libero: in modalità Gioco vengono evidenziate automaticamente le celle e le aree nominate nel testo
+          (es. un'area chiamata "Cucina", oppure un oggetto come "sedia" ovunque si trovi sulla mappa). Una clausola
+          che contiene "non" evidenzia in negativo invece che in positivo.
+        </p>
         {puzzle.suspects.map((s) => {
           const suspectClues = puzzle.clues.filter((c) => c.suspectId === s.id);
+          const newText = newClueTextBySuspect[s.id] ?? '';
           return (
           <div key={s.id} style={{ marginBottom: '0.75rem' }}>
             <strong style={{ color: s.color }}>{s.name}</strong>
             <ul className="mk-clue-list">
               {suspectClues.map((c) => (
                   <li key={c.id} className="mk-clue-item">
-                    <span>{describeClue(c, puzzle, areas)}</span>
+                    <input
+                      value={c.text}
+                      onChange={(e) => updateClue(c.id, { text: e.target.value })}
+                      style={{ flex: 1 }}
+                    />
                     <button className="mk-btn danger" onClick={() => removeClue(c.id)}>
                       Rimuovi
                     </button>
@@ -648,38 +656,39 @@ export default function EditorPage() {
                 Svuota tutti gli indizi
               </button>
             )}
-            {clueEditorFor === s.id ? (
-              <ClueForm
-                puzzle={puzzle}
-                suspectId={s.id}
-                areas={areas}
-                onSubmit={(clue) => {
-                  addClue(clue);
-                  setClueEditorFor(null);
-                }}
-                onCancel={() => setClueEditorFor(null)}
+            <div className="mk-row" style={{ marginTop: '0.5rem' }}>
+              <input
+                placeholder="Nuovo indizio (testo)"
+                value={newText}
+                onChange={(e) => setNewClueTextBySuspect((m) => ({ ...m, [s.id]: e.target.value }))}
+                style={{ flex: 1 }}
               />
-            ) : (
-              <button className="mk-btn secondary" onClick={() => setClueEditorFor(s.id)}>
+              <button
+                className="mk-btn secondary"
+                onClick={() => {
+                  if (!newText.trim()) return;
+                  addClue({ suspectId: s.id, text: newText.trim() });
+                  setNewClueTextBySuspect((m) => ({ ...m, [s.id]: '' }));
+                }}
+              >
                 + Aggiungi indizio
               </button>
-            )}
+            </div>
           </div>
           );
         })}
       </section>
 
       <section className="mk-card">
-        <h2>Regole globali</h2>
+        <h2>Indizi generici</h2>
+        <p style={{ fontSize: '0.85rem', color: '#666' }}>
+          Come gli indizi per sospettato, ma non legati a nessuno: le celle/aree nominate si evidenziano in Gioco
+          quando non è selezionato alcun sospettato.
+        </p>
         <ul className="mk-clue-list">
           {puzzle.globalRules.map((r) => (
             <li key={r.id} className="mk-clue-item">
-              <span>
-                {r.type === 'allAreasHaveSuspect' && 'Ogni area contiene almeno un sospettato'}
-                {r.type === 'evenCountInAreas' &&
-                  `Numero pari di sospettati in: ${r.areaIds.map((id) => areaDisplayName(id, puzzle.areaNames, areas)).join(', ')}`}
-                {r.type === 'custom' && r.description}
-              </span>
+              <input value={r.text} onChange={(e) => updateGlobalRule(r.id, { text: e.target.value })} style={{ flex: 1 }} />
               <button className="mk-btn danger" onClick={() => removeGlobalRule(r.id)}>
                 Rimuovi
               </button>
@@ -687,13 +696,8 @@ export default function EditorPage() {
           ))}
         </ul>
         <div className="mk-row" style={{ marginTop: '0.5rem' }}>
-          <button className="mk-btn secondary" onClick={() => addGlobalRule({ type: 'allAreasHaveSuspect' })}>
-            + Tutte le aree hanno un sospettato
-          </button>
-        </div>
-        <div className="mk-row" style={{ marginTop: '0.5rem' }}>
           <input
-            placeholder="Regola libera (testo)"
+            placeholder="Nuovo indizio generico (testo)"
             value={customRuleText}
             onChange={(e) => setCustomRuleText(e.target.value)}
             style={{ flex: 1 }}
@@ -702,11 +706,11 @@ export default function EditorPage() {
             className="mk-btn secondary"
             onClick={() => {
               if (!customRuleText.trim()) return;
-              addGlobalRule({ type: 'custom', description: customRuleText.trim() });
+              addGlobalRule({ text: customRuleText.trim() });
               setCustomRuleText('');
             }}
           >
-            + Aggiungi regola libera
+            + Aggiungi indizio generico
           </button>
         </div>
       </section>
