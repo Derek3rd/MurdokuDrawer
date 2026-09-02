@@ -7,8 +7,8 @@ import iconCroce from '../assets/ui/croce.svg';
 import { usePlayStore } from '../store/usePlayStore';
 import { loadPuzzle } from '../storage/puzzleStorage';
 import { areaBottomLabelAnchor, computeAreas } from '../lib/grid';
-import { describeClue } from '../lib/describeClue';
-import { areaCustomName, areaDisplayName } from '../lib/areaLabel';
+import { highlightsForText, mergeHighlights } from '../lib/clueHighlight';
+import { areaCustomName } from '../lib/areaLabel';
 import { elementConnections, fixedFootprintGroups, isCornerDiagonalFilled, resolveElementVisual, tCornersFilled } from '../lib/elementShape';
 import { isMultiCellType, parseCellId, resolveElementType, type CellId, type Puzzle } from '../types/puzzle';
 
@@ -63,6 +63,19 @@ export default function PlayPage() {
     [puzzle],
   );
   const footprintCoveredCells = useMemo(() => new Set(footprintGroups.flatMap((g) => g.cellIds)), [footprintGroups]);
+
+  // Celle/aree da evidenziare in base al testo degli indizi: quelli del sospettato selezionato,
+  // oppure (se non è selezionato nessun sospettato) quelli degli indizi generici. La vittima non
+  // ha indizi propri: quando è selezionata lei, nessuna evidenza.
+  const activeHighlights = useMemo(() => {
+    if (!puzzle || !areas) return null;
+    if (selectedSuspectId === VICTIM_ID) return null;
+    if (selectedSuspectId) {
+      const clues = puzzle.clues.filter((c) => c.suspectId === selectedSuspectId);
+      return mergeHighlights(clues.map((c) => highlightsForText(c.text, puzzle, areas)));
+    }
+    return mergeHighlights(puzzle.globalRules.map((r) => highlightsForText(r.text, puzzle, areas)));
+  }, [puzzle, areas, selectedSuspectId]);
 
   if (!puzzle || !areas || puzzleId !== id) return <p>Caricamento...</p>;
 
@@ -252,8 +265,11 @@ export default function PlayPage() {
           windows={puzzle.windows}
           disabledCellsHidden
           cellClassName={(c) => {
-            if (isAutoExcludedCell(c) || playState.manualMarks.includes(c)) return 'locked';
-            return undefined;
+            const classes: string[] = [];
+            if (isAutoExcludedCell(c) || playState.manualMarks.includes(c)) classes.push('locked');
+            if (activeHighlights?.positiveCellIds.has(c)) classes.push('mk-cell-clue-positive');
+            if (activeHighlights?.negativeCellIds.has(c)) classes.push('mk-cell-clue-negative');
+            return classes.length > 0 ? classes.join(' ') : undefined;
           }}
           cellStyle={(c) => {
             if (!selectedSuspectId) return undefined;
@@ -344,7 +360,7 @@ export default function PlayPage() {
               <ul className="mk-clue-list">
                 {clues.map((c) => (
                   <li key={c.id} className="mk-clue-item">
-                    {describeClue(c, puzzle, areas)}
+                    {c.text}
                   </li>
                 ))}
               </ul>
@@ -353,14 +369,11 @@ export default function PlayPage() {
         })}
         {puzzle.globalRules.length > 0 && (
           <>
-            <strong>Regole globali</strong>
+            <strong>Indizi generici</strong>
             <ul className="mk-clue-list">
               {puzzle.globalRules.map((r) => (
                 <li key={r.id} className="mk-clue-item">
-                  {r.type === 'allAreasHaveSuspect' && 'Ogni area contiene almeno un sospettato'}
-                  {r.type === 'evenCountInAreas' &&
-                    `Numero pari di sospettati in: ${r.areaIds.map((id) => areaDisplayName(id, puzzle.areaNames, areas)).join(', ')}`}
-                  {r.type === 'custom' && r.description}
+                  {r.text}
                 </li>
               ))}
             </ul>

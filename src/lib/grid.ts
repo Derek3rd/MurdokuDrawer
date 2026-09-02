@@ -114,31 +114,3 @@ export function isWallBetween(a: CellId, b: CellId, wallsRight: CellId[], wallsB
   }
   return false;
 }
-
-export function isAdjacent(a: CellId, b: CellId): boolean {
-  const ca = parseCellId(a);
-  const cb = parseCellId(b);
-  const dr = Math.abs(ca.row - cb.row);
-  const dc = Math.abs(ca.col - cb.col);
-  return (dr === 1 && dc === 0) || (dr === 0 && dc === 1);
-}
-
-/** True se `a` si trova nella direzione `dir` rispetto a `b` (a è dir di b). */
-export function isInDirection(a: CellId, b: CellId, dir: 'N' | 'S' | 'E' | 'O'): boolean {
-  const ca = parseCellId(a);
-  const cb = parseCellId(b);
-  switch (dir) {
-    case 'N':
-      return ca.col === cb.col && ca.row < cb.row;
-    case 'S':
-      return ca.col === cb.col && ca.row > cb.row;
-    case 'E':
-      return ca.row === cb.row && ca.col > cb.col;
-    case 'O':
-      return ca.row === cb.row && ca.col < cb.col;
-  }
-}
-
-export function isAdjacentInDirection(a: CellId, b: CellId, dir: 'N' | 'S' | 'E' | 'O'): boolean {
-  return isInDirection(a, b, dir) && isAdjacent(a, b);
-}

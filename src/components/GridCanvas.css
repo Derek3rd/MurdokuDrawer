@@ -93,6 +93,22 @@
   box-shadow: inset 0 0 0 999px rgba(42, 157, 143, 0.3);
 }
 
+/*
+ * Evidenza delle celle/aree nominate nel testo di un indizio (vedi lib/clueHighlight.ts):
+ * verde/continuo per un riferimento "positivo" (es. "è nell'area cucina"), arancio/tratteggiato
+ * per uno "negativo" (es. "non era in cucina"). Outline (non box-shadow) per non entrare in
+ * conflitto con il riempimento dei candidati, che usa box-shadow.
+ */
+.mk-cell.mk-cell-clue-positive {
+  outline: 3px solid #2a9d8f;
+  outline-offset: -3px;
+}
+
+.mk-cell.mk-cell-clue-negative {
+  outline: 3px dashed #e76f51;
+  outline-offset: -3px;
+}
+
 .mk-cell-disabled {
   background: repeating-linear-gradient(45deg, #d8d8d8, #d8d8d8 6px, #ececec 6px, #ececec 12px);
 }
