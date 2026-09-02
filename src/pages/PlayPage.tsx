@@ -265,11 +265,13 @@ export default function PlayPage() {
           windows={puzzle.windows}
           disabledCellsHidden
           cellClassName={(c) => {
-            const classes: string[] = [];
-            if (isAutoExcludedCell(c) || playState.manualMarks.includes(c)) classes.push('locked');
-            if (activeHighlights?.positiveCellIds.has(c)) classes.push('mk-cell-clue-positive');
-            if (activeHighlights?.negativeCellIds.has(c)) classes.push('mk-cell-clue-negative');
-            return classes.length > 0 ? classes.join(' ') : undefined;
+            if (isAutoExcludedCell(c) || playState.manualMarks.includes(c)) return 'locked';
+            return undefined;
+          }}
+          cellHighlight={(c) => {
+            if (activeHighlights?.positiveCellIds.has(c)) return 'positive';
+            if (activeHighlights?.negativeCellIds.has(c)) return 'negative';
+            return undefined;
           }}
           cellStyle={(c) => {
             if (!selectedSuspectId) return undefined;
