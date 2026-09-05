@@ -135,6 +135,7 @@
 .mk-candidate-grid {
   position: absolute;
   inset: 0;
+  z-index: 2;
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 1px;
